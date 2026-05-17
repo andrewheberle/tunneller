@@ -6,6 +6,7 @@
 *.dylib
 tunneller
 !cmd/tunneller
+!internal/pkg/tunneller
 
 # Test binary, built with `go test -c`
 *.test
