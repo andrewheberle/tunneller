@@ -1,0 +1,14 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+tunneller
+!cmd/tunneller
+
+# Test binary, built with `go test -c`
+*.test
+
+# GoReleaser dist dir
+dist/
