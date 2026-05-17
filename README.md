@@ -58,7 +58,7 @@ The request URL determines the tunnel parameters. Six route forms are supported,
 
 | Parameter | Description | Default flag |
 |-----------|-------------|--------------|
-| `endpoint` | Remote host to reach via the tunnel | — (required) |
+| `endpoint` | Remote host to reach via the tunnel | (required) |
 | `jumphost` | SSH jump host address | `--ssh` |
 | `jumphostuser` | SSH user for the jump host | `--ssh.user` |
 | `jumphostport` | SSH port for the jump host | `--ssh.port` |

@@ -82,7 +82,7 @@ func rewriteLocation(loc, prefix string, target *url.URL) (string, error) {
 		return loc, nil
 	}
 
-	// Relative path — prepend prefix
+	// Relative path - prepend prefix
 	if strings.HasPrefix(u.Path, "/") {
 		u.Path = prefix + u.Path
 		return u.String(), nil
