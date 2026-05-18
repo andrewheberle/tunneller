@@ -72,7 +72,7 @@ sboms:
 
 dockers_v2:
   - images:
-      - ghcr.io/andrewheberle/tunneller
+      - ghcr.io/andrewheberle/{{ .ProjectName }}
     ids:
       - tunneller
     tags:
