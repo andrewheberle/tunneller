@@ -4,11 +4,11 @@
 Tunnels are established on demand and torn down automatically after a period of inactivity.
 
 The target endpoint, SSH jump host, and related parameters can be supplied via the request URL,
-with defaults and restrictions configured at startup via CLI flags.
+with defaults and restrictions configured at startup via command line flags.
 
 ## Usage
 
-```
+```sh
 tunneller [flags]
 ```
 
@@ -20,20 +20,38 @@ tunneller [flags]
 | `--key` | | SSH private key file(s) to load for authentication (repeatable) |
 | `--ssh` | | Default SSH jump host |
 | `--ssh.allow` | `.*` | Allowed SSH jump hosts (regexp) |
+| `--ssh.knownhosts` | | SSH known_hosts file to verify jump host identity |
 | `--ssh.user` | `jump` | Default SSH user |
 | `--ssh.user.allow` | `^jump$` | Allowed SSH users (regexp) |
 | `--ssh.port` | `22` | Default SSH jump host port |
 | `--ssh.port.allow` | `^22$` | Allowed SSH jump host ports (regexp) |
 | `--ssh.timeout` | `5m` | Idle timeout for SSH jump host connections |
 | `--endpoint.allow` | `.*` | Allowed remote endpoints (regexp) |
+| `--endpoint.ca` | | CA bundle to verify HTTPS connections to endpoints |
 | `--endpoint.port` | `80` | Default endpoint port |
 | `--endpoint.port.allow` | `^(80\|443)$` | Allowed endpoint ports (regexp) |
 | `--endpoint.scheme` | `http` | Default endpoint scheme |
 | `--endpoint.scheme.allow` | `^http(s)?$` | Allowed endpoint schemes (regexp) |
 
+#### Setting Flags from the Environment
+
+All flags can be set using the following form:
+
+`TUNNELLER_<FLAG NAME>`
+
+For example:
+
+```sh
+TUNNELLER_SSH_TIMEOUT="15m" TUNNELLER_KEY="/etc/tunneller/id_ed25519" tunneller
+```
+
+Command line and environment variables may be combined with environment variables
+taking precedence over command line flags.
+
 ### Authentication
 
-SSH authentication uses private keys loaded at startup via one or more `--key` flags. Keys are held in an in-process SSH agent for the lifetime of the service.
+SSH authentication uses private keys loaded at startup via one or more `--key` flags.
+Keys are held in an in-process SSH agent for the lifetime of the service.
 
 ```
 tunneller --key /etc/tunneller/id_ed25519 --key /etc/tunneller/id_rsa
@@ -43,7 +61,9 @@ If no keys are loaded then authentication will fail.
 
 ## URL Routing
 
-The request URL determines the tunnel parameters. Six route forms are supported, from most specific to least specific. Less specific forms rely on defaults set via CLI flags.
+The request URL determines the tunnel parameters. Six route forms are supported, from
+most specific to least specific. Less specific forms rely on defaults set via command line
+flags or environment variables.
 
 ### Route forms
 
@@ -106,3 +126,16 @@ tunneller \
 ## Tunnel Lifecycle
 
 A tunnel is established on the first request to a given parameter combination and reused for subsequent requests with the same parameters. Tunnels are torn down automatically after a period of inactivity (idle timeout). A new tunnel will be established if a subsequent request arrives after teardown.
+
+## SSH Host Key Verification
+
+By default SSH host keys are **not** verified, which is not secure in production.
+
+The `--ssh.knownhosts` option accepts the path to a SSH Known Hosts file in order
+to verify host keys.
+
+## Endpoint Certificate Verification
+
+Enabling certificate verification for HTTPS is highly recommended by passing the
+`--endpoint.ca` option which accepts a path to a CA bundle in PEM format or the
+special value `@system` which loads trusted CA's from the system (if available).

@@ -2,7 +2,10 @@ package cmd
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -15,8 +18,10 @@ import (
 	"github.com/andrewheberle/tunneller/internal/pkg/server"
 	"github.com/andrewheberle/tunneller/internal/pkg/tunneller"
 	"github.com/bep/simplecobra"
+	sloghttp "github.com/samber/slog-http"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
+	"golang.org/x/crypto/ssh/knownhosts"
 )
 
 type rootCommand struct {
@@ -25,18 +30,20 @@ type rootCommand struct {
 	sshhost             string
 	sshport             string
 	sshuser             string
-	allowEndpoint       *regexpflag.Flag
-	endpointport        string
-	allowEndpointPort   *regexpflag.Flag
-	endpointscheme      string
-	allowEndpointScheme *regexpflag.Flag
+	sshknownhosts       string
 	sshtimeout          time.Duration
 	allowJumphost       *regexpflag.Flag
 	allowJumphostUser   *regexpflag.Flag
 	allowJumphostPort   *regexpflag.Flag
+	endpointca          string
+	endpointport        string
+	endpointscheme      string
+	allowEndpoint       *regexpflag.Flag
+	allowEndpointPort   *regexpflag.Flag
+	allowEndpointScheme *regexpflag.Flag
 	debug               bool
 
-	mux    *http.ServeMux
+	mux    http.Handler
 	logger *slog.Logger
 
 	*vipercommand.Command
@@ -61,6 +68,7 @@ func (c *rootCommand) Init(cd *simplecobra.Commandeer) error {
 	cmd.Flags().StringVar(&c.addr, "addr", ":8080", "Listen address")
 	cmd.Flags().StringSliceVar(&c.keys, "key", []string{}, "SSH key(s) to load for authentication")
 	cmd.Flags().StringVar(&c.sshhost, "ssh", "", "Default SSH jump host")
+	cmd.Flags().StringVar(&c.sshknownhosts, "ssh.knownhosts", "", "SSH known_hosts file to verify jump host identity")
 	cmd.Flags().Var(c.allowJumphost, "ssh.allow", "Allowed SSH jump hosts (regexp)")
 	cmd.Flags().StringVar(&c.sshuser, "ssh.user", "jump", "Default SSH user to use for jump host")
 	cmd.Flags().DurationVar(&c.sshtimeout, "ssh.timeout", time.Minute*5, "Idle timeout for SSH jump host connections")
@@ -68,6 +76,7 @@ func (c *rootCommand) Init(cd *simplecobra.Commandeer) error {
 	cmd.Flags().Var(c.allowJumphostPort, "ssh.port.allow", "Allowed SSH port for jump host (regexp)")
 	cmd.Flags().StringVar(&c.sshport, "ssh.port", "22", "SSH port for jump host")
 	cmd.Flags().Var(c.allowEndpoint, "endpoint.allow", "Allowed remote endpoints (regexp)")
+	cmd.Flags().StringVar(&c.endpointca, "endpoint.ca", "", "CA bundle to verify HTTPS connections to endpoints")
 	cmd.Flags().StringVar(&c.endpointport, "endpoint.port", "80", "Default endpoint port")
 	cmd.Flags().Var(c.allowEndpointPort, "endpoint.port.allow", "Allowed remote endpoint ports (regexp)")
 	cmd.Flags().StringVar(&c.endpointscheme, "endpoint.scheme", "http", "Default endpoint scheme")
@@ -99,6 +108,7 @@ func (c *rootCommand) PreRun(this, runner *simplecobra.Commandeer) error {
 		AllowedEndpointScheme: c.allowEndpointScheme.Regexp(),
 		EndpointPort:          c.endpointport,
 		EndpointScheme:        c.endpointscheme,
+		Logger:                c.logger,
 	}
 
 	// load any ssh keys
@@ -134,6 +144,47 @@ func (c *rootCommand) PreRun(this, runner *simplecobra.Commandeer) error {
 		}
 	}
 
+	// load known hosts file if passed
+	if c.sshknownhosts != "" {
+		hostKeyCallback, err := knownhosts.New(c.sshknownhosts)
+		if err != nil {
+			return err
+		}
+		srv.HostKeyCallback = hostKeyCallback
+	} else {
+		c.logger.Warn("SSH host key verification is not enabled")
+		srv.HostKeyCallback = ssh.InsecureIgnoreHostKey()
+	}
+
+	// set up CA pool for HTTPS connections to endpoints
+	if c.endpointca != "" {
+		if c.endpointca == "@system" {
+			rootCAs, err := x509.SystemCertPool()
+			if err != nil {
+				return err
+			}
+
+			srv.ProxyTlsConfig = &tls.Config{
+				RootCAs: rootCAs,
+			}
+		} else {
+			caCert, err := os.ReadFile(c.endpointca)
+			if err != nil {
+				return err
+			}
+
+			caCertPool := x509.NewCertPool()
+			if !caCertPool.AppendCertsFromPEM(caCert) {
+				return fmt.Errorf("failed to append CA certificate to pool")
+			}
+			srv.ProxyTlsConfig = &tls.Config{
+				RootCAs: caCertPool,
+			}
+		}
+	} else {
+		c.logger.Warn("certificate verification for HTTPS endpoints is not enabled")
+	}
+
 	mux := http.NewServeMux()
 	mux.Handle("/{jumphostuser}/{jumphost}/{jumphostport}/{scheme}/{endpoint}/{port}/", srv)
 	mux.Handle("/{jumphostuser}/{jumphost}/{scheme}/{endpoint}/{port}/", srv)
@@ -141,7 +192,9 @@ func (c *rootCommand) PreRun(this, runner *simplecobra.Commandeer) error {
 	mux.Handle("/{jumphost}/{scheme}/{endpoint}/", srv)
 	mux.Handle("/{jumphost}/{endpoint}/", srv)
 	mux.Handle("/{endpoint}/", srv)
-	c.mux = mux
+	handler := sloghttp.Recovery(mux)
+	handler = sloghttp.New(c.logger)(handler)
+	c.mux = handler
 
 	c.logger.Debug("config options set",
 		slog.Group("ssh",

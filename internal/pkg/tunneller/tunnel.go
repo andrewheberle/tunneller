@@ -16,10 +16,12 @@ import (
 // tunnel represents an active SSH connection to a remote site, with an idle
 // timeout that triggers teardown when no requests have been proxied recently.
 type Tunnel struct {
-	client         *ssh.Client
-	endpointScheme string
-	endpointAddr   string
-	idleTimeout    time.Duration
+	client          *ssh.Client
+	endpointScheme  string
+	endpointAddr    string
+	idleTimeout     time.Duration
+	hostKeyCallback ssh.HostKeyCallback
+	tlsConfig       *tls.Config
 
 	mu            sync.Mutex
 	lastUsed      time.Time
@@ -34,15 +36,21 @@ type Tunnel struct {
 // fires so the caller can remove the tunnel from any registry.
 func NewTunnel(ep SSHEndpoint, onTeardown func(), opts ...TunnelOption) (*Tunnel, error) {
 	t := &Tunnel{
-		endpointScheme: ep.EndpointScheme,
-		endpointAddr:   ep.EndpointAddr,
-		lastUsed:       time.Now(),
-		onTeardown:     onTeardown,
-		idleTimeout:    time.Minute * 5,
+		endpointScheme:  ep.EndpointScheme,
+		endpointAddr:    ep.EndpointAddr,
+		lastUsed:        time.Now(),
+		onTeardown:      onTeardown,
+		idleTimeout:     time.Minute * 5,
+		hostKeyCallback: nil,
+		tlsConfig:       &tls.Config{InsecureSkipVerify: true},
 	}
 
 	for _, o := range opts {
 		o(t)
+	}
+
+	if t.hostKeyCallback == nil {
+		return nil, fmt.Errorf("tunnel: host key callback is required")
 	}
 
 	authMethods := make([]ssh.AuthMethod, 0)
@@ -54,7 +62,7 @@ func NewTunnel(ep SSHEndpoint, onTeardown func(), opts ...TunnelOption) (*Tunnel
 	cfg := &ssh.ClientConfig{
 		User:            ep.User,
 		Auth:            authMethods,
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		HostKeyCallback: t.hostKeyCallback,
 	}
 
 	client, err := ssh.Dial("tcp", ep.Host, cfg)
@@ -68,13 +76,13 @@ func NewTunnel(ep SSHEndpoint, onTeardown func(), opts ...TunnelOption) (*Tunnel
 }
 
 // transport returns an http.RoundTripper that dials the endpoint over the SSH
-// channel with TLS verification disabled (self-signed cert).
+// channel
 func (t *Tunnel) transport() http.RoundTripper {
 	return &http.Transport{
 		DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
 			return t.dial()
 		},
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		TLSClientConfig: t.tlsConfig,
 	}
 }
 
