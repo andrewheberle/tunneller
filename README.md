@@ -25,7 +25,7 @@ tunneller [flags]
 | `--ssh.timeout` | `5m` | Idle timeout for SSH jump host connections |
 | `--endpoint.allow` | `.*` | Allowed remote endpoints (regexp) |
 | `--endpoint.ca` | | CA bundle to verify HTTPS connections to endpoints |
-| `--endpoint.headers.allow` | `Authorization`, `Connection`, `Cache-Control`, `Upgrade-Insecure-Requests`, `User-Agent`, `Accept`, `Accept-Encoding`, `Accept-Language`, `Cookie` | Allowed HTTP headers to pass to endpoint (canonical form) |
+| `--endpoint.headers.allow` | `Accept`, `Accept-Encoding`, `Accept-Language`, `Authorization`, `Cache-Control`, `Connection`, `Content-Length`, `Content-Type`, `Cookie`, `Origin`, `Referer`, `Upgrade-Insecure-Requests`, `User-Agent` | Allowed HTTP headers to pass to endpoint (canonical form). Host header is always allowed. |
 | `--endpoint.port.allow` | `^(80\|443)$` | Allowed endpoint ports (regexp) |
 | `--endpoint.scheme.allow` | `^http(s)?$` | Allowed endpoint schemes (regexp) |
 
