@@ -153,6 +153,7 @@ func (c *rootCommand) PreRun(this, runner *simplecobra.Commandeer) error {
 		srv.HostKeyCallback = hostKeyCallback
 	} else {
 		c.logger.Warn("SSH host key verification is not enabled")
+		srv.HostKeyCallback = ssh.InsecureIgnoreHostKey()
 	}
 
 	// set up CA pool for HTTPS connections to endpoints

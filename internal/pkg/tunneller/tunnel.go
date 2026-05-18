@@ -41,12 +41,16 @@ func NewTunnel(ep SSHEndpoint, onTeardown func(), opts ...TunnelOption) (*Tunnel
 		lastUsed:        time.Now(),
 		onTeardown:      onTeardown,
 		idleTimeout:     time.Minute * 5,
-		hostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		hostKeyCallback: nil,
 		tlsConfig:       &tls.Config{InsecureSkipVerify: true},
 	}
 
 	for _, o := range opts {
 		o(t)
+	}
+
+	if t.hostKeyCallback == nil {
+		return nil, fmt.Errorf("tunnel: host key callback is required")
 	}
 
 	authMethods := make([]ssh.AuthMethod, 0)
