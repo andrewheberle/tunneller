@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"regexp"
 	"sync"
@@ -30,12 +31,10 @@ type Server struct {
 	HostKeyCallback ssh.HostKeyCallback
 	Logger          *slog.Logger
 
-	AllowedJumphost       *regexp.Regexp
-	AllowedJumphostPort   *regexp.Regexp
-	AllowedJumphostUser   *regexp.Regexp
-	AllowedEndpoint       *regexp.Regexp
-	AllowedEndpointPort   *regexp.Regexp
-	AllowedEndpointScheme *regexp.Regexp
+	AllowedEndpoint        *regexp.Regexp
+	AllowedEndpointPort    *regexp.Regexp
+	AllowedEndpointHeaders []string
+	AllowedEndpointScheme  *regexp.Regexp
 }
 
 // ServeHTTP handles all requests.
@@ -82,7 +81,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	t.ProxyHandler(fmt.Sprintf("/%s/%s/%s", scheme, endpoint, port)).ServeHTTP(w, r)
+	t.ProxyHandler(fmt.Sprintf("/%s/%s/%s", scheme, endpoint, port), s.AllowedEndpointHeaders).ServeHTTP(w, r)
 }
 
 // getOrCreateTunnel returns an existing tunnel for the key or establishes a
@@ -99,10 +98,10 @@ func (s *Server) getOrCreateTunnel(logger *slog.Logger, scheme, endpoint, port s
 	}
 
 	ep := tunneller.SSHEndpoint{
-		Host:           fmt.Sprintf("%s:%s", s.SSHHost, s.SSHPort),
+		Host:           net.JoinHostPort(s.SSHHost, s.SSHPort),
 		User:           s.SSHUser,
 		EndpointScheme: scheme,
-		EndpointAddr:   fmt.Sprintf("%s:%s", endpoint, port),
+		EndpointAddr:   net.JoinHostPort(endpoint, port),
 	}
 
 	// add timeout and ssh agent if we loaded keys

@@ -5,13 +5,14 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"slices"
 	"strings"
 )
 
 // ProxyHandler returns an http.Handler that proxies requests to the endpoint
 // over the provided tunnel. prefix is the path prefix to strip before
-// forwarding.
-func (t *Tunnel) ProxyHandler(prefix string) http.Handler {
+// forwarding and hdrs is a list of allowed headers
+func (t *Tunnel) ProxyHandler(prefix string, hdrs []string) http.Handler {
 
 	target := &url.URL{
 		Scheme: t.endpointScheme,
@@ -24,7 +25,14 @@ func (t *Tunnel) ProxyHandler(prefix string) http.Handler {
 			req.Out.URL.Scheme = target.Scheme
 			req.Out.URL.Host = target.Host
 
-			// Strip the /siteid/customerid prefix so the endpoint sees its own paths
+			// strip out headers we don't want to pass to the endpoint
+			for header := range req.In.Header {
+				if !slices.Contains(hdrs, header) {
+					req.Out.Header.Del(header)
+				}
+			}
+
+			// Strip the prefix so the endpoint sees its own paths
 			trimmed := strings.TrimPrefix(req.In.URL.Path, prefix)
 			if trimmed == "" {
 				trimmed = "/"
