@@ -18,19 +18,14 @@ tunneller [flags]
 |------|---------|-------------|
 | `--addr` | `:8080` | Listen address |
 | `--key` | | SSH private key file(s) to load for authentication (repeatable) |
-| `--ssh` | | Default SSH jump host |
-| `--ssh.allow` | `.*` | Allowed SSH jump hosts (regexp) |
+| `--ssh` | | SSH jump host address |
 | `--ssh.knownhosts` | | SSH known_hosts file to verify jump host identity |
-| `--ssh.user` | `jump` | Default SSH user |
-| `--ssh.user.allow` | `^jump$` | Allowed SSH users (regexp) |
-| `--ssh.port` | `22` | Default SSH jump host port |
-| `--ssh.port.allow` | `^22$` | Allowed SSH jump host ports (regexp) |
+| `--ssh.user` | `jump` | SSH jump host user |
+| `--ssh.port` | `22` | SSH jump host port |
 | `--ssh.timeout` | `5m` | Idle timeout for SSH jump host connections |
 | `--endpoint.allow` | `.*` | Allowed remote endpoints (regexp) |
 | `--endpoint.ca` | | CA bundle to verify HTTPS connections to endpoints |
-| `--endpoint.port` | `80` | Default endpoint port |
 | `--endpoint.port.allow` | `^(80\|443)$` | Allowed endpoint ports (regexp) |
-| `--endpoint.scheme` | `http` | Default endpoint scheme |
 | `--endpoint.scheme.allow` | `^http(s)?$` | Allowed endpoint schemes (regexp) |
 
 #### Setting Flags from the Environment
@@ -61,29 +56,17 @@ If no keys are loaded then authentication will fail.
 
 ## URL Routing
 
-The request URL determines the tunnel parameters. Six route forms are supported, from
-most specific to least specific. Less specific forms rely on defaults set via command line
-flags or environment variables.
-
-### Route forms
+The request URL determines the tunnel parameters in the form of:
 
 ```
-/{endpoint}/
-/{jumphost}/{endpoint}/
-/{jumphost}/{scheme}/{endpoint}/
-/{jumphost}/{scheme}/{endpoint}/{port}/
-/{jumphostuser}/{jumphost}/{scheme}/{endpoint}/{port}/
-/{jumphostuser}/{jumphost}/{jumphostport}/{scheme}/{endpoint}/{port}/
+/{scheme}/{endpoint}/{port}/
 ```
 
 | Parameter | Description | Default flag |
 |-----------|-------------|--------------|
 | `endpoint` | Remote host to reach via the tunnel | (required) |
-| `jumphost` | SSH jump host address | `--ssh` |
-| `jumphostuser` | SSH user for the jump host | `--ssh.user` |
-| `jumphostport` | SSH port for the jump host | `--ssh.port` |
-| `scheme` | Endpoint scheme (`http` or `https`) | `--endpoint.scheme` |
-| `port` | Endpoint port | `--endpoint.port` |
+| `scheme` | Endpoint scheme (required) | |
+| `port` | Endpoint port | (required) |
 
 ### Examples
 
@@ -93,33 +76,25 @@ Given a service started with:
 tunneller \
   --ssh jump.example.com \
   --ssh.user jump \
-  --endpoint.scheme https \
-  --endpoint.port 443
 ```
 
 | URL | Connects to |
 |-----|-------------|
-| `/192.168.1.1/` | `https://192.168.1.1:443` via `jump@jump.example.com:22` |
-| `/jump2.example.com/192.168.1.1/` | `https://192.168.1.1:443` via `jump@jump2.example.com:22` |
-| `/jump2.example.com/http/192.168.1.1/` | `http://192.168.1.1:443` via `jump@jump2.example.com:22` |
-| `/jump2.example.com/http/192.168.1.1/80/` | `http://192.168.1.1:80` via `jump@jump2.example.com:22` |
-| `/admin/jump2.example.com/http/192.168.1.1/80/` | `http://192.168.1.1:80` via `admin@jump2.example.com:22` |
-| `/admin/jump2.example.com/2222/http/192.168.1.1/80/` | `http://192.168.1.1:80` via `admin@jump2.example.com:2222` |
+| `/http/192.168.1.1/80/` | `http://192.168.1.1:80` via `jump@jump.example.com:22` |
+| `/https/192.168.1.2/443/` | `https://192.168.1.2:443` via `jump@jump.example.com:22` |
 
 ## Restrictions
 
 All URL parameters are validated against their corresponding `--*.allow` regexp flags before a tunnel is established. Requests that fail validation receive a `403 Forbidden` response.
 
-This allows the operator to constrain which jump hosts, users, ports, schemes, and endpoints are reachable through the service. For example, to restrict the service to a single jump host and only allow HTTPS to RFC 1918 addresses:
+This allows the operator to constrain which jump hosts, users, ports, schemes, and endpoints are reachable through the service. For example, to restrict the service to a single jump host and only allow HTTPS to RFC 1918 addresses on port 443:
 
 ```
 tunneller \
   --ssh jump.example.com \
   --ssh.allow '^jump\.example\.com$' \
   --endpoint.allow '^(10\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.)' \
-  --endpoint.scheme https \
   --endpoint.scheme.allow '^https$' \
-  --endpoint.port 443 \
   --endpoint.port.allow '^443$'
 ```
 

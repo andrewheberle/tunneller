@@ -32,12 +32,7 @@ type rootCommand struct {
 	sshuser             string
 	sshknownhosts       string
 	sshtimeout          time.Duration
-	allowJumphost       *regexpflag.Flag
-	allowJumphostUser   *regexpflag.Flag
-	allowJumphostPort   *regexpflag.Flag
 	endpointca          string
-	endpointport        string
-	endpointscheme      string
 	allowEndpoint       *regexpflag.Flag
 	allowEndpointPort   *regexpflag.Flag
 	allowEndpointScheme *regexpflag.Flag
@@ -56,9 +51,6 @@ func (c *rootCommand) Init(cd *simplecobra.Commandeer) error {
 		return err
 	}
 
-	c.allowJumphost = regexpflag.MustCompile(".*")
-	c.allowJumphostUser = regexpflag.MustCompile("^jump$")
-	c.allowJumphostPort = regexpflag.MustCompile("^22$")
 	c.allowEndpoint = regexpflag.MustCompile(".*")
 	c.allowEndpointScheme = regexpflag.MustCompile("^http(s)?$")
 	c.allowEndpointPort = regexpflag.MustCompile("^(80|443)$")
@@ -67,20 +59,16 @@ func (c *rootCommand) Init(cd *simplecobra.Commandeer) error {
 	cmd.Flags().BoolVar(&c.debug, "debug", false, "Enable debug logging")
 	cmd.Flags().StringVar(&c.addr, "addr", ":8080", "Listen address")
 	cmd.Flags().StringSliceVar(&c.keys, "key", []string{}, "SSH key(s) to load for authentication")
-	cmd.Flags().StringVar(&c.sshhost, "ssh", "", "Default SSH jump host")
+	cmd.Flags().StringVar(&c.sshhost, "ssh", "", "SSH jump host address")
 	cmd.Flags().StringVar(&c.sshknownhosts, "ssh.knownhosts", "", "SSH known_hosts file to verify jump host identity")
-	cmd.Flags().Var(c.allowJumphost, "ssh.allow", "Allowed SSH jump hosts (regexp)")
-	cmd.Flags().StringVar(&c.sshuser, "ssh.user", "jump", "Default SSH user to use for jump host")
+	cmd.Flags().StringVar(&c.sshuser, "ssh.user", "jump", "SSH user to use for jump host")
 	cmd.Flags().DurationVar(&c.sshtimeout, "ssh.timeout", time.Minute*5, "Idle timeout for SSH jump host connections")
-	cmd.Flags().Var(c.allowJumphostUser, "ssh.user.allow", "Allowed SSH user for jump host (regexp)")
-	cmd.Flags().Var(c.allowJumphostPort, "ssh.port.allow", "Allowed SSH port for jump host (regexp)")
 	cmd.Flags().StringVar(&c.sshport, "ssh.port", "22", "SSH port for jump host")
 	cmd.Flags().Var(c.allowEndpoint, "endpoint.allow", "Allowed remote endpoints (regexp)")
 	cmd.Flags().StringVar(&c.endpointca, "endpoint.ca", "", "CA bundle to verify HTTPS connections to endpoints")
-	cmd.Flags().StringVar(&c.endpointport, "endpoint.port", "80", "Default endpoint port")
 	cmd.Flags().Var(c.allowEndpointPort, "endpoint.port.allow", "Allowed remote endpoint ports (regexp)")
-	cmd.Flags().StringVar(&c.endpointscheme, "endpoint.scheme", "http", "Default endpoint scheme")
 	cmd.Flags().Var(c.allowEndpointScheme, "endpoint.scheme.allow", "Allowed remote endpoint schemes (regexp)")
+	cmd.MarkFlagFilename("ssh")
 
 	return nil
 }
@@ -96,9 +84,6 @@ func (c *rootCommand) PreRun(this, runner *simplecobra.Commandeer) error {
 
 	srv := &server.Server{
 		Tunnels:               make(map[string]*tunneller.Tunnel),
-		AllowedJumphost:       c.allowJumphost.Regexp(),
-		AllowedJumphostUser:   c.allowJumphostUser.Regexp(),
-		AllowedJumphostPort:   c.allowJumphostPort.Regexp(),
 		SSHHost:               c.sshhost,
 		SSHPort:               c.sshport,
 		SSHUser:               c.sshuser,
@@ -106,8 +91,6 @@ func (c *rootCommand) PreRun(this, runner *simplecobra.Commandeer) error {
 		AllowedEndpoint:       c.allowEndpoint.Regexp(),
 		AllowedEndpointPort:   c.allowEndpointPort.Regexp(),
 		AllowedEndpointScheme: c.allowEndpointScheme.Regexp(),
-		EndpointPort:          c.endpointport,
-		EndpointScheme:        c.endpointscheme,
 		Logger:                c.logger,
 	}
 
@@ -186,12 +169,7 @@ func (c *rootCommand) PreRun(this, runner *simplecobra.Commandeer) error {
 	}
 
 	mux := http.NewServeMux()
-	mux.Handle("/{jumphostuser}/{jumphost}/{jumphostport}/{scheme}/{endpoint}/{port}/", srv)
-	mux.Handle("/{jumphostuser}/{jumphost}/{scheme}/{endpoint}/{port}/", srv)
-	mux.Handle("/{jumphost}/{scheme}/{endpoint}/{port}/", srv)
-	mux.Handle("/{jumphost}/{scheme}/{endpoint}/", srv)
-	mux.Handle("/{jumphost}/{endpoint}/", srv)
-	mux.Handle("/{endpoint}/", srv)
+	mux.Handle("/{scheme}/{endpoint}/{port}/", srv)
 	handler := sloghttp.Recovery(mux)
 	handler = sloghttp.New(c.logger)(handler)
 	c.mux = handler
@@ -203,15 +181,8 @@ func (c *rootCommand) PreRun(this, runner *simplecobra.Commandeer) error {
 			"timeout", c.sshtimeout,
 			"user", c.sshuser,
 			"keys", c.keys,
-			slog.Group("allow",
-				"host", c.allowJumphost.String(),
-				"port", c.allowJumphostPort.String(),
-				"user", c.allowJumphostUser.String(),
-			),
 		),
 		slog.Group("endpoint",
-			"scheme", c.endpointscheme,
-			"port", c.endpointport,
 			slog.Group("allow",
 				"scheme", c.allowEndpointScheme.String(),
 				"port", c.allowEndpointPort.String(),
