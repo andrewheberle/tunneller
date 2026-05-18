@@ -1,10 +1,13 @@
 package tunneller
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"regexp"
 	"slices"
 	"strings"
 )
@@ -63,6 +66,12 @@ func (t *Tunnel) ProxyHandler(prefix string, hdrs []string) http.Handler {
 			// Rewrite Set-Cookie Path attributes so cookies are scoped to the correct path
 			rewriteCookiePaths(resp, prefix)
 
+			// Rewrite absolute form action paths in HTML responses so that form
+			// submissions are routed through the service prefix.
+			if err := rewriteFormActions(resp, prefix); err != nil {
+				return err
+			}
+
 			return nil
 		},
 	}
@@ -116,4 +125,54 @@ func rewriteCookiePaths(resp *http.Response, prefix string) {
 		c.Path = prefix
 		resp.Header.Add("Set-Cookie", c.String())
 	}
+}
+
+// rewriteFormActions rewrites absolute path action attributes in HTML form
+// tags so that form submissions include the service prefix. Only responses
+// with a Content-Type of text/html are modified. The entire response body is
+// buffered to perform the rewrite.
+//
+// Only absolute paths (e.g. action="/login.cgi") are rewritten; relative paths
+// and full URLs are left untouched.
+func rewriteFormActions(resp *http.Response, prefix string) error {
+	ct := resp.Header.Get("Content-Type")
+	if !strings.HasPrefix(ct, "text/html") {
+		return nil
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if err != nil {
+		return fmt.Errorf("rewriteFormActions: read body: %w", err)
+	}
+
+	formActionRe := regexp.MustCompile(`action=(['"])(/[^'"]*)\1`)
+
+	rewritten := formActionRe.ReplaceAllFunc(body, func(match []byte) []byte {
+		// match is e.g.: action="/login.cgi" or action='/login.cgi'
+		// group 1: quote char, group 2: path
+		sub := formActionRe.FindSubmatch(match)
+		if len(sub) != 3 {
+			return match
+		}
+		quote := sub[1]
+		path := sub[2]
+
+		// Only rewrite absolute paths
+		if len(path) == 0 || path[0] != '/' {
+			return match
+		}
+
+		newPath := append([]byte(prefix), path...)
+		result := []byte("action=")
+		result = append(result, quote...)
+		result = append(result, newPath...)
+		result = append(result, quote...)
+		return result
+	})
+
+	resp.Body = io.NopCloser(bytes.NewReader(rewritten))
+	resp.ContentLength = int64(len(rewritten))
+
+	return nil
 }
