@@ -127,6 +127,10 @@ func rewriteCookiePaths(resp *http.Response, prefix string) {
 	}
 }
 
+// formActionRe matches form action attributes with single or double quoted
+// absolute paths
+var formActionRe = regexp.MustCompile(`action=(["'])(\/[^"']*)(["'])`)
+
 // rewriteFormActions rewrites absolute path action attributes in HTML form
 // tags so that form submissions include the service prefix. Only responses
 // with a Content-Type of text/html are modified. The entire response body is
@@ -146,22 +150,13 @@ func rewriteFormActions(resp *http.Response, prefix string) error {
 		return fmt.Errorf("rewriteFormActions: read body: %w", err)
 	}
 
-	formActionRe := regexp.MustCompile(`action=(['"])(/[^'"]*)\1`)
-
 	rewritten := formActionRe.ReplaceAllFunc(body, func(match []byte) []byte {
-		// match is e.g.: action="/login.cgi" or action='/login.cgi'
-		// group 1: quote char, group 2: path
 		sub := formActionRe.FindSubmatch(match)
-		if len(sub) != 3 {
+		if len(sub) != 4 {
 			return match
 		}
 		quote := sub[1]
 		path := sub[2]
-
-		// Only rewrite absolute paths
-		if len(path) == 0 || path[0] != '/' {
-			return match
-		}
 
 		newPath := append([]byte(prefix), path...)
 		result := []byte("action=")
@@ -172,6 +167,7 @@ func rewriteFormActions(resp *http.Response, prefix string) error {
 	})
 
 	resp.Body = io.NopCloser(bytes.NewReader(rewritten))
+	resp.Header.Set("Content-Length", fmt.Sprintf("%d", len(rewritten)))
 	resp.ContentLength = int64(len(rewritten))
 
 	return nil
