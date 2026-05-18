@@ -20,7 +20,7 @@ builds:
     main: ./...
     mod_timestamp: "{{ .CommitTimestamp }}"
     ldflags:
-      - -s -w
+      - -s -w -X github.com/andrewheberle/{{ .ProjectName }}/internal/pkg/version.version={{ .Version }}
     tags:
       - netgo
 
