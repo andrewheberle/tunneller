@@ -1,6 +1,8 @@
 package server
 
 import (
+	"crypto/sha256"
+	"crypto/tls"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -10,20 +12,24 @@ import (
 	"time"
 
 	"github.com/andrewheberle/tunneller/internal/pkg/tunneller"
+	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 )
 
 // server holds the active tunnel registry.
 type Server struct {
-	mu             sync.Mutex
-	Tunnels        map[string]*tunneller.Tunnel
-	Agent          agent.Agent
-	SSHHost        string
-	SSHPort        string
-	SSHUser        string
-	SSHTimeout     time.Duration
-	EndpointPort   string
-	EndpointScheme string
+	mu              sync.Mutex
+	Tunnels         map[string]*tunneller.Tunnel
+	Agent           agent.Agent
+	SSHHost         string
+	SSHPort         string
+	SSHUser         string
+	SSHTimeout      time.Duration
+	EndpointPort    string
+	EndpointScheme  string
+	ProxyTlsConfig  *tls.Config
+	HostKeyCallback ssh.HostKeyCallback
+	Logger          *slog.Logger
 
 	AllowedJumphost       *regexp.Regexp
 	AllowedJumphostPort   *regexp.Regexp
@@ -94,7 +100,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	logger := slog.With(
+	logger := s.Logger.With(
 		slog.Group("jumphost", "user", jumphostuser, "address", jumphost),
 		slog.Group("endpoint", "address", endpoint, "port", port),
 	)
@@ -112,12 +118,13 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // getOrCreateTunnel returns an existing tunnel for the key or establishes a
 // new one. Separate tunnels per request path.
 func (s *Server) getOrCreateTunnel(logger *slog.Logger, user, jumphost, scheme, endpoint, port string) (*tunneller.Tunnel, error) {
-	key := fmt.Sprintf("%s@%s/%s://%s:%s", user, jumphost, scheme, endpoint, port)
+	key := tunnelKey(user, jumphost, scheme, endpoint, port)
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	if t, ok := s.Tunnels[key]; ok {
+		logger.Debug("reusing existing tunnel", "key", key)
 		return t, nil
 	}
 
@@ -133,18 +140,28 @@ func (s *Server) getOrCreateTunnel(logger *slog.Logger, user, jumphost, scheme, 
 	if s.Agent != nil {
 		opts = append(opts, tunneller.WithAgent(s.Agent))
 	}
+	if s.HostKeyCallback != nil {
+		opts = append(opts, tunneller.WithHostKeyCallback(s.HostKeyCallback))
+	}
+	if s.ProxyTlsConfig != nil {
+		opts = append(opts, tunneller.WithTlsConfig(s.ProxyTlsConfig))
+	}
 
 	t, err := tunneller.NewTunnel(ep, func() {
 		s.mu.Lock()
 		delete(s.Tunnels, key)
 		s.mu.Unlock()
-		logger.Info("tunnel torn down (idle timeout)", "jumphost", jumphost, "endpoint", endpoint, "port", port)
+		logger.Info("tunnel torn down (idle timeout)", "key", key)
 	}, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("create tunnel: %w", err)
 	}
 
-	logger.Info("tunnel established", "jumphost", jumphost, "endpoint", endpoint, "port", port)
+	logger.Info("tunnel established", "key", key)
 	s.Tunnels[key] = t
 	return t, nil
+}
+
+func tunnelKey(a ...any) string {
+	return fmt.Sprintf("%x", sha256.Sum256(fmt.Appendf(nil, "%s@%s/%s://%s:%s", a...)))
 }
