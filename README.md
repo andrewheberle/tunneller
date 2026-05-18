@@ -17,8 +17,8 @@ tunneller [flags]
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--addr` | `:8080` | Listen address |
-| `--key` | | SSH private key file(s) to load for authentication (repeatable) |
 | `--ssh` | | SSH jump host address |
+| `--ssh.key` | | SSH private key file(s) to load for jump host authentication (repeatable) |
 | `--ssh.knownhosts` | | SSH known_hosts file to verify jump host identity |
 | `--ssh.user` | `jump` | SSH jump host user |
 | `--ssh.port` | `22` | SSH jump host port |
@@ -37,7 +37,7 @@ All flags can be set using the following form:
 For example:
 
 ```sh
-TUNNELLER_SSH_TIMEOUT="15m" TUNNELLER_KEY="/etc/tunneller/id_ed25519" tunneller
+TUNNELLER_SSH_TIMEOUT="15m" TUNNELLER_SSH_KEY="/etc/tunneller/id_ed25519" tunneller
 ```
 
 Command line and environment variables may be combined with environment variables
@@ -49,7 +49,7 @@ SSH authentication uses private keys loaded at startup via one or more `--key` f
 Keys are held in an in-process SSH agent for the lifetime of the service.
 
 ```
-tunneller --key /etc/tunneller/id_ed25519 --key /etc/tunneller/id_rsa
+tunneller --ssh.key /etc/tunneller/id_ed25519 --ssh.key /etc/tunneller/id_rsa
 ```
 
 If no keys are loaded then authentication will fail.

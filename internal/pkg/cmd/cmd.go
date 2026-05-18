@@ -58,8 +58,8 @@ func (c *rootCommand) Init(cd *simplecobra.Commandeer) error {
 	cmd := cd.CobraCommand
 	cmd.Flags().BoolVar(&c.debug, "debug", false, "Enable debug logging")
 	cmd.Flags().StringVar(&c.addr, "addr", ":8080", "Listen address")
-	cmd.Flags().StringSliceVar(&c.keys, "key", []string{}, "SSH key(s) to load for authentication")
 	cmd.Flags().StringVar(&c.sshhost, "ssh", "", "SSH jump host address")
+	cmd.Flags().StringSliceVar(&c.keys, "ssh.key", []string{}, "SSH key(s) to load for jump host authentication")
 	cmd.Flags().StringVar(&c.sshknownhosts, "ssh.knownhosts", "", "SSH known_hosts file to verify jump host identity")
 	cmd.Flags().StringVar(&c.sshuser, "ssh.user", "jump", "SSH user to use for jump host")
 	cmd.Flags().DurationVar(&c.sshtimeout, "ssh.timeout", time.Minute*5, "Idle timeout for SSH jump host connections")
