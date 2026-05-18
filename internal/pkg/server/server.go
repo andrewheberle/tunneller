@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"net/http"
 	"regexp"
-	"strings"
 	"sync"
 	"time"
 
@@ -39,60 +38,21 @@ type Server struct {
 	AllowedEndpointScheme *regexp.Regexp
 }
 
-// ServeHTTP handles all /{siteid}/{customerid}/... requests.
+// ServeHTTP handles all requests.
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	jumphost := r.PathValue("jumphost")
-	if jumphost == "" {
-		jumphost = s.SSHHost
-	}
-	if jumphost == "" {
-		http.Error(w, "Bad Request - No Jumphost Available", http.StatusBadRequest)
-		return
-	}
-	if !s.AllowedJumphost.Match([]byte(jumphost)) {
-		http.Error(w, "Forbidden - Bad Jumphost", http.StatusForbidden)
-		return
-	}
-
-	jumphostuser := r.PathValue("jumphostuser")
-	if jumphostuser == "" {
-		jumphostuser = s.SSHUser
-	}
-	if !s.AllowedJumphostUser.Match([]byte(jumphostuser)) {
-		http.Error(w, "Forbidden - Bad Jumphost User", http.StatusForbidden)
-		return
-	}
-
-	jumphostport := r.PathValue("jumphostport")
-	if jumphostport == "" {
-		jumphostport = s.SSHPort
-	}
-	if !s.AllowedJumphostPort.Match([]byte(jumphostport)) {
-		http.Error(w, "Forbidden - Bad Jumphost Port", http.StatusForbidden)
-		return
-	}
-
 	scheme := r.PathValue("scheme")
 	if scheme == "" {
-		scheme = s.EndpointScheme
+		http.Error(w, "Bad Request - No Endpoint Scheme", http.StatusBadRequest)
+		return
 	}
 	if !s.AllowedEndpointScheme.Match([]byte(scheme)) {
 		http.Error(w, "Forbidden - Bad Scheme", http.StatusForbidden)
 		return
 	}
 
-	port := r.PathValue("port")
-	if port == "" {
-		port = s.EndpointPort
-	}
-	if !s.AllowedEndpointPort.Match([]byte(port)) {
-		http.Error(w, "Forbidden - Bad Port", http.StatusForbidden)
-		return
-	}
-
 	endpoint := r.PathValue("endpoint")
-	if jumphost == "" {
-		http.Error(w, "Bad Request", http.StatusBadRequest)
+	if endpoint == "" {
+		http.Error(w, "Bad Request - No Endpoint", http.StatusBadRequest)
 		return
 	}
 	if !s.AllowedEndpoint.Match([]byte(endpoint)) {
@@ -100,25 +60,35 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	port := r.PathValue("port")
+	if port == "" {
+		http.Error(w, "Bad Request - No Endpoint Port", http.StatusBadRequest)
+		return
+	}
+	if !s.AllowedEndpointPort.Match([]byte(port)) {
+		http.Error(w, "Forbidden - Bad Port", http.StatusForbidden)
+		return
+	}
+
 	logger := s.Logger.With(
-		slog.Group("jumphost", "user", jumphostuser, "address", jumphost),
-		slog.Group("endpoint", "address", endpoint, "port", port),
+		slog.Group("jumphost", "user", s.SSHUser, "address", s.SSHHost, "port", s.SSHPort),
+		slog.Group("endpoint", "scheme", scheme, "address", endpoint, "port", port),
 	)
 
-	t, err := s.getOrCreateTunnel(logger, jumphostuser, jumphost, scheme, endpoint, port)
+	t, err := s.getOrCreateTunnel(logger, scheme, endpoint, port)
 	if err != nil {
 		logger.Error("tunnel unavailable", "error", err)
 		http.Error(w, "tunnel unavailable", http.StatusBadGateway)
 		return
 	}
 
-	t.ProxyHandler(strings.TrimSuffix(r.URL.Path, "/")).ServeHTTP(w, r)
+	t.ProxyHandler(fmt.Sprintf("/%s/%s/%s", scheme, endpoint, port)).ServeHTTP(w, r)
 }
 
 // getOrCreateTunnel returns an existing tunnel for the key or establishes a
 // new one. Separate tunnels per request path.
-func (s *Server) getOrCreateTunnel(logger *slog.Logger, user, jumphost, scheme, endpoint, port string) (*tunneller.Tunnel, error) {
-	key := tunnelKey(user, jumphost, scheme, endpoint, port)
+func (s *Server) getOrCreateTunnel(logger *slog.Logger, scheme, endpoint, port string) (*tunneller.Tunnel, error) {
+	key := tunnelKey(scheme, endpoint, port)
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -129,8 +99,8 @@ func (s *Server) getOrCreateTunnel(logger *slog.Logger, user, jumphost, scheme, 
 	}
 
 	ep := tunneller.SSHEndpoint{
-		Host:           fmt.Sprintf("%s:%s", jumphost, s.SSHPort),
-		User:           user,
+		Host:           fmt.Sprintf("%s:%s", s.SSHHost, s.SSHPort),
+		User:           s.SSHUser,
 		EndpointScheme: scheme,
 		EndpointAddr:   fmt.Sprintf("%s:%s", endpoint, port),
 	}
@@ -163,5 +133,5 @@ func (s *Server) getOrCreateTunnel(logger *slog.Logger, user, jumphost, scheme, 
 }
 
 func tunnelKey(a ...any) string {
-	return fmt.Sprintf("%x", sha256.Sum256(fmt.Appendf(nil, "%s@%s/%s://%s:%s", a...)))
+	return fmt.Sprintf("%x", sha256.Sum256(fmt.Appendf(nil, "%s://%s:%s", a...)))
 }

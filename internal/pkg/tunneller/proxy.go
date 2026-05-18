@@ -10,8 +10,9 @@ import (
 
 // ProxyHandler returns an http.Handler that proxies requests to the endpoint
 // over the provided tunnel. prefix is the path prefix to strip before
-// forwarding (e.g. "/siteid/customerid").
+// forwarding.
 func (t *Tunnel) ProxyHandler(prefix string) http.Handler {
+
 	target := &url.URL{
 		Scheme: t.endpointScheme,
 		Host:   t.endpointAddr,
