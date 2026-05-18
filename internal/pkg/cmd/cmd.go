@@ -70,7 +70,7 @@ func (c *rootCommand) Init(cd *simplecobra.Commandeer) error {
 	cmd.Flags().StringVar(&c.endpointca, "endpoint.ca", "", "CA bundle to verify HTTPS connections to endpoints")
 	cmd.Flags().Var(c.allowEndpointPort, "endpoint.port.allow", "Allowed remote endpoint ports (regexp)")
 	cmd.Flags().Var(c.allowEndpointScheme, "endpoint.scheme.allow", "Allowed remote endpoint schemes (regexp)")
-	cmd.Flags().StringSliceVar(&c.allowEndpointHeaders, "endpoint.headers.allow", []string{"Connection", "Cache-Control", "Upgrade-Insecure-Requests", "User-Agent", "Accept", "Accept-Encoding", "Accept-Language", "Cookie"}, "Allowed HTTP headers to pass to endpoint (canonical form)")
+	cmd.Flags().StringSliceVar(&c.allowEndpointHeaders, "endpoint.headers.allow", []string{"Connection", "Cache-Control", "Upgrade-Insecure-Requests", "User-Agent", "Accept", "Accept-Encoding", "Accept-Language", "Cookie", "Referer", "Content-Length", "Content-Type", "Origin"}, "Allowed HTTP headers to pass to endpoint (canonical form)")
 	cmd.MarkFlagFilename("ssh")
 
 	return nil

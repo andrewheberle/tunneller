@@ -57,7 +57,7 @@ func (t *Tunnel) ProxyHandler(prefix string, hdrs []string) http.Handler {
 		ModifyResponse: func(resp *http.Response) error {
 			// Rewrite Location headers so redirects stay within our prefix
 			if loc := resp.Header.Get("Location"); loc != "" {
-				rewritten, err := rewriteLocation(loc, prefix, target)
+				rewritten, err := rewriteLocation(loc, prefix)
 				if err == nil {
 					resp.Header.Set("Location", rewritten)
 				}
@@ -81,8 +81,8 @@ func (t *Tunnel) ProxyHandler(prefix string, hdrs []string) http.Handler {
 
 // rewriteLocation rewrites a Location header value emitted by the endpoint so
 // that it includes the service prefix. Relative paths are kept relative;
-// absolute URLs pointing at the endpoint host are rewritten to the prefix path.
-func rewriteLocation(loc, prefix string, target *url.URL) (string, error) {
+// absolute URLs are rewritten to the prefix path.
+func rewriteLocation(loc, prefix string) (string, error) {
 	u, err := url.Parse(loc)
 	if err != nil {
 		return loc, fmt.Errorf("parse location %q: %w", loc, err)
@@ -90,14 +90,10 @@ func rewriteLocation(loc, prefix string, target *url.URL) (string, error) {
 
 	// Absolute URL pointing at the endpoint - rewrite to our prefix
 	if u.IsAbs() {
-		if u.Host == target.Host {
-			u.Scheme = ""
-			u.Host = ""
-			u.Path = prefix + "/" + strings.TrimPrefix(u.Path, "/")
-			return u.String(), nil
-		}
-		// Absolute URL pointing elsewhere - leave untouched
-		return loc, nil
+		u.Scheme = ""
+		u.Host = ""
+		u.Path = prefix + "/" + strings.TrimPrefix(u.Path, "/")
+		return u.String(), nil
 	}
 
 	// Relative path - prepend prefix
