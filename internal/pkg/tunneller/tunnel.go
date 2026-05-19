@@ -4,11 +4,13 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"sync"
 	"time"
 
+	"github.com/andrewheberle/tunneller/internal/pkg/tracker"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 )
@@ -16,12 +18,15 @@ import (
 // tunnel represents an active SSH connection to a remote site, with an idle
 // timeout that triggers teardown when no requests have been proxied recently.
 type Tunnel struct {
+	key             string
 	client          *ssh.Client
 	endpointScheme  string
 	endpointAddr    string
 	idleTimeout     time.Duration
 	hostKeyCallback ssh.HostKeyCallback
 	tlsConfig       *tls.Config
+	tracker         *tracker.CookieTracker
+	logger          *slog.Logger
 
 	mu            sync.Mutex
 	lastUsed      time.Time
@@ -43,6 +48,7 @@ func NewTunnel(ep SSHEndpoint, onTeardown func(), opts ...TunnelOption) (*Tunnel
 		idleTimeout:     time.Minute * 5,
 		hostKeyCallback: nil,
 		tlsConfig:       &tls.Config{InsecureSkipVerify: true},
+		logger:          slog.New(slog.DiscardHandler),
 	}
 
 	for _, o := range opts {

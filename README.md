@@ -101,7 +101,10 @@ tunneller \
 
 ## Tunnel Lifecycle
 
-A tunnel is established on the first request to a given parameter combination and reused for subsequent requests with the same parameters. Tunnels are torn down automatically after a period of inactivity (idle timeout). A new tunnel will be established if a subsequent request arrives after teardown.
+A tunnel is established on the first request to a given parameter combination and
+reused for subsequent requests with the same parameters. Tunnels are torn down
+automatically after a period of inactivity (idle timeout). A new tunnel will be
+established if a subsequent request arrives after teardown.
 
 ## SSH Host Key Verification
 
@@ -115,3 +118,15 @@ to verify host keys.
 Enabling certificate verification for HTTPS is highly recommended by passing the
 `--endpoint.ca` option which accepts a path to a CA bundle in PEM format or the
 special value `@system` which loads trusted CA's from the system (if available).
+
+## Cookie Handling
+
+Any cookies that are returned from the proxied endpoint via a `Set-Cookie` header
+have their `path` value changed so they are only valid for the proxied path.
+
+In addition only cookies that have been returned from a proxied endpoint via a
+`Set-Cookie` header will be passed from the browser to the remote endpoint.
+
+This "cookie tracking" is per tunnel but is maintained for the lifetime of the
+entire service, not just the lifetime of the particular tunnel.
+

@@ -2,8 +2,10 @@ package tunneller
 
 import (
 	"crypto/tls"
+	"log/slog"
 	"time"
 
+	"github.com/andrewheberle/tunneller/internal/pkg/tracker"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 )
@@ -31,5 +33,23 @@ func WithHostKeyCallback(cb ssh.HostKeyCallback) TunnelOption {
 func WithTlsConfig(config *tls.Config) TunnelOption {
 	return func(t *Tunnel) {
 		t.tlsConfig = config
+	}
+}
+
+func WithCookieTracker(tracker *tracker.CookieTracker) TunnelOption {
+	return func(t *Tunnel) {
+		t.tracker = tracker
+	}
+}
+
+func WithKey(key string) TunnelOption {
+	return func(t *Tunnel) {
+		t.key = key
+	}
+}
+
+func WithLogger(logger *slog.Logger) TunnelOption {
+	return func(t *Tunnel) {
+		t.logger = logger
 	}
 }

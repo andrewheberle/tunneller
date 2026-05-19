@@ -11,30 +11,56 @@ import (
 	"sync"
 	"time"
 
+	"github.com/andrewheberle/tunneller/internal/pkg/tracker"
 	"github.com/andrewheberle/tunneller/internal/pkg/tunneller"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 )
 
+const (
+	DefaultSSHTimeout = time.Minute * 5
+	DefaultSSHUser    = "jump"
+	DefaultSSHPort    = "22"
+)
+
 // server holds the active tunnel registry.
 type Server struct {
-	mu              sync.Mutex
-	Tunnels         map[string]*tunneller.Tunnel
-	Agent           agent.Agent
-	SSHHost         string
-	SSHPort         string
-	SSHUser         string
-	SSHTimeout      time.Duration
-	EndpointPort    string
-	EndpointScheme  string
+	mu      sync.Mutex
+	tunnels map[string]*tunneller.Tunnel
+	agent   agent.Agent
+	logger  *slog.Logger
+	tracker *tracker.CookieTracker
+
+	host    string
+	port    string
+	user    string
+	timeout time.Duration
+
 	ProxyTlsConfig  *tls.Config
 	HostKeyCallback ssh.HostKeyCallback
-	Logger          *slog.Logger
 
 	AllowedEndpoint        *regexp.Regexp
 	AllowedEndpointPort    *regexp.Regexp
 	AllowedEndpointHeaders []string
 	AllowedEndpointScheme  *regexp.Regexp
+}
+
+func New(user, host, port string, opts ...ServerOption) (*Server, error) {
+	s := &Server{
+		user:                   user,
+		host:                   host,
+		port:                   port,
+		tracker:                tracker.NewCookieTracker(),
+		tunnels:                make(map[string]*tunneller.Tunnel),
+		logger:                 slog.New(slog.DiscardHandler),
+		AllowedEndpointHeaders: DefaultEndpointHeadersAllow(),
+	}
+
+	for _, o := range opts {
+		o(s)
+	}
+
+	return s, nil
 }
 
 // ServeHTTP handles all requests.
@@ -69,8 +95,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	logger := s.Logger.With(
-		slog.Group("jumphost", "user", s.SSHUser, "address", s.SSHHost, "port", s.SSHPort),
+	logger := s.logger.With(
+		slog.Group("jumphost", "user", s.user, "address", s.host, "port", s.port),
 		slog.Group("endpoint", "scheme", scheme, "address", endpoint, "port", port),
 	)
 
@@ -92,22 +118,26 @@ func (s *Server) getOrCreateTunnel(logger *slog.Logger, scheme, endpoint, port s
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if t, ok := s.Tunnels[key]; ok {
+	if t, ok := s.tunnels[key]; ok {
 		logger.Debug("reusing existing tunnel", "key", key)
 		return t, nil
 	}
 
 	ep := tunneller.SSHEndpoint{
-		Host:           net.JoinHostPort(s.SSHHost, s.SSHPort),
-		User:           s.SSHUser,
+		Host:           net.JoinHostPort(s.host, s.port),
+		User:           s.user,
 		EndpointScheme: scheme,
 		EndpointAddr:   net.JoinHostPort(endpoint, port),
 	}
 
 	// add timeout and ssh agent if we loaded keys
-	opts := []tunneller.TunnelOption{tunneller.WithIdleTimeout(s.SSHTimeout)}
-	if s.Agent != nil {
-		opts = append(opts, tunneller.WithAgent(s.Agent))
+	opts := []tunneller.TunnelOption{
+		tunneller.WithIdleTimeout(s.timeout),
+		tunneller.WithKey(key),
+		tunneller.WithLogger(logger),
+	}
+	if s.agent != nil {
+		opts = append(opts, tunneller.WithAgent(s.agent))
 	}
 	if s.HostKeyCallback != nil {
 		opts = append(opts, tunneller.WithHostKeyCallback(s.HostKeyCallback))
@@ -115,10 +145,13 @@ func (s *Server) getOrCreateTunnel(logger *slog.Logger, scheme, endpoint, port s
 	if s.ProxyTlsConfig != nil {
 		opts = append(opts, tunneller.WithTlsConfig(s.ProxyTlsConfig))
 	}
+	if s.tracker != nil {
+		opts = append(opts, tunneller.WithCookieTracker(s.tracker))
+	}
 
 	t, err := tunneller.NewTunnel(ep, func() {
 		s.mu.Lock()
-		delete(s.Tunnels, key)
+		delete(s.tunnels, key)
 		s.mu.Unlock()
 		logger.Info("tunnel torn down (idle timeout)", "key", key)
 	}, opts...)
@@ -127,10 +160,28 @@ func (s *Server) getOrCreateTunnel(logger *slog.Logger, scheme, endpoint, port s
 	}
 
 	logger.Info("tunnel established", "key", key)
-	s.Tunnels[key] = t
+	s.tunnels[key] = t
 	return t, nil
 }
 
 func tunnelKey(a ...any) string {
 	return fmt.Sprintf("%x", sha256.Sum256(fmt.Appendf(nil, "%s://%s:%s", a...)))
+}
+
+func DefaultEndpointHeadersAllow() []string {
+	return []string{
+		"Accept",
+		"Accept-Encoding",
+		"Accept-Language",
+		"Authorization",
+		"Cache-Control",
+		"Connection",
+		"Content-Length",
+		"Content-Type",
+		"Cookie",
+		"Origin",
+		"Upgrade-Insecure-Requests",
+		"User-Agent",
+		"Referer",
+	}
 }
