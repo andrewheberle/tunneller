@@ -130,3 +130,15 @@ In addition only cookies that have been returned from a proxied endpoint via a
 This "cookie tracking" is per tunnel but is maintained for the lifetime of the
 entire service, not just the lifetime of the particular tunnel.
 
+## Metrics
+
+Prometheus metrics are provided at the `/metrics` endpoint by default but can
+be changed using the `--metrics.path` flag or disabled completely with the
+`--metrics.enabled` flag.
+
+| Metric Name                          | Type    | Description |
+|--------------------------------------|---------|-------------|
+| `tunneller_tunnel_count`             | Guage   | Number of active SSH tunnels |
+| `tunneller_tunnel_established_total` | Counter | Total number of SSH tunnels established successfully |
+| `tunneller_tunnel_error_total`       | Counter | Total number of errors when establishing SSH tunnels |
+| `tunneller_tunnel_total`             | Counter | Total number of SSH tunnels attempted to be established |

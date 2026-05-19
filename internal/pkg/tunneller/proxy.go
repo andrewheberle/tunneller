@@ -68,7 +68,7 @@ func (t *Tunnel) ProxyHandler(prefix string, hdrs []string) http.Handler {
 
 			// Rewrite absolute form action paths in HTML responses so that form
 			// submissions are routed through the service prefix.
-			if err := t.rewriteFormActions(resp, prefix); err != nil {
+			if err := t.rewriteContent(resp, prefix); err != nil {
 				return err
 			}
 
@@ -133,23 +133,50 @@ func (t *Tunnel) rewriteCookiePaths(resp *http.Response, prefix string) {
 // absolute paths
 var formActionRe = regexp.MustCompile(`action=(["'])(\/[^"']*)(["'])`)
 
-// rewriteFormActions rewrites absolute path action attributes in HTML form
+// rewriteContent rewrites absolute path action attributes in HTML form
 // tags so that form submissions include the service prefix. Only responses
 // with a Content-Type of text/html are modified. The entire response body is
 // buffered to perform the rewrite.
 //
 // Only absolute paths (e.g. action="/login.cgi") are rewritten; relative paths
 // and full URLs are left untouched.
-func (t *Tunnel) rewriteFormActions(resp *http.Response, prefix string) error {
+func (t *Tunnel) rewriteContent(resp *http.Response, prefix string) error {
+	var body []byte
+
 	ct := resp.Header.Get("Content-Type")
+	if ct == "" {
+		// handle ,issing content type by sniffing for mime type
+		if err := func() error {
+			b, err := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			if err != nil {
+				return fmt.Errorf("read body: %w", err)
+			}
+			body = b
+
+			// detect content type and set header
+			ct = http.DetectContentType(body)
+			resp.Header.Set("Content-Type", ct)
+
+			t.logger.Debug("response did not include a content-type header so value was detected", "detected", ct)
+
+			return nil
+		}(); err != nil {
+			return fmt.Errorf("rewriteFormActions: sniff content type: %w", err)
+		}
+	}
 	if !strings.HasPrefix(ct, "text/html") {
 		return nil
 	}
 
-	body, err := io.ReadAll(resp.Body)
-	resp.Body.Close()
-	if err != nil {
-		return fmt.Errorf("rewriteFormActions: read body: %w", err)
+	// read body if not already read
+	if body == nil {
+		b, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			return fmt.Errorf("rewriteFormActions: read body: %w", err)
+		}
+		body = b
 	}
 
 	rewritten := formActionRe.ReplaceAllFunc(body, func(match []byte) []byte {
