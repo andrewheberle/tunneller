@@ -15,6 +15,10 @@ func (tracker *CookieTracker) Record(key, cookie string) {
 	tracker.mu.Lock()
 	defer tracker.mu.Unlock()
 
+	if tracker.cookies[key] == nil {
+		tracker.cookies[key] = make(map[string]any)
+	}
+
 	tracker.cookies[key][cookie] = ""
 }
 
