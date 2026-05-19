@@ -29,11 +29,10 @@ func (t *Tunnel) ProxyHandler(prefix string, hdrs []string) http.Handler {
 			req.Out.URL.Host = target.Host
 
 			// strip out headers we don't want to pass to the endpoint
-			for header := range req.In.Header {
-				if !slices.Contains(hdrs, header) {
-					req.Out.Header.Del(header)
-				}
-			}
+			t.filterHeaders(req, hdrs)
+
+			// filter any cookies
+			t.filterCookies(req)
 
 			// Strip the prefix so the endpoint sees its own paths
 			trimmed := strings.TrimPrefix(req.In.URL.Path, prefix)
@@ -57,18 +56,19 @@ func (t *Tunnel) ProxyHandler(prefix string, hdrs []string) http.Handler {
 		ModifyResponse: func(resp *http.Response) error {
 			// Rewrite Location headers so redirects stay within our prefix
 			if loc := resp.Header.Get("Location"); loc != "" {
-				rewritten, err := rewriteLocation(loc, prefix)
+				rewritten, err := t.rewriteLocation(loc, prefix)
 				if err == nil {
 					resp.Header.Set("Location", rewritten)
 				}
 			}
 
 			// Rewrite Set-Cookie Path attributes so cookies are scoped to the correct path
-			rewriteCookiePaths(resp, prefix)
+			// and also track any cookies sent back
+			t.rewriteCookiePaths(resp, prefix)
 
 			// Rewrite absolute form action paths in HTML responses so that form
 			// submissions are routed through the service prefix.
-			if err := rewriteFormActions(resp, prefix); err != nil {
+			if err := t.rewriteFormActions(resp, prefix); err != nil {
 				return err
 			}
 
@@ -82,7 +82,7 @@ func (t *Tunnel) ProxyHandler(prefix string, hdrs []string) http.Handler {
 // rewriteLocation rewrites a Location header value emitted by the endpoint so
 // that it includes the service prefix. Relative paths are kept relative;
 // absolute URLs are rewritten to the prefix path.
-func rewriteLocation(loc, prefix string) (string, error) {
+func (t *Tunnel) rewriteLocation(loc, prefix string) (string, error) {
 	u, err := url.Parse(loc)
 	if err != nil {
 		return loc, fmt.Errorf("parse location %q: %w", loc, err)
@@ -109,7 +109,7 @@ func rewriteLocation(loc, prefix string) (string, error) {
 // the response so that cookies are scoped to the service prefix rather than
 // the endpoints own path hierarchy. This prevents cookies set at Path=/ on the
 // endpoint from being sent to unrelated endpoint sessions on this service.
-func rewriteCookiePaths(resp *http.Response, prefix string) {
+func (t *Tunnel) rewriteCookiePaths(resp *http.Response, prefix string) {
 	cookies := resp.Cookies()
 	if len(cookies) == 0 {
 		return
@@ -120,6 +120,12 @@ func rewriteCookiePaths(resp *http.Response, prefix string) {
 	for _, c := range cookies {
 		c.Path = prefix
 		resp.Header.Add("Set-Cookie", c.String())
+
+		// record cookie
+		if t.key != "" && t.tracker != nil {
+			t.logger.Debug("tracked cookie", "key", t.key, "name", c.Name)
+			t.tracker.Record(t.key, c.Name)
+		}
 	}
 }
 
@@ -134,7 +140,7 @@ var formActionRe = regexp.MustCompile(`action=(["'])(\/[^"']*)(["'])`)
 //
 // Only absolute paths (e.g. action="/login.cgi") are rewritten; relative paths
 // and full URLs are left untouched.
-func rewriteFormActions(resp *http.Response, prefix string) error {
+func (t *Tunnel) rewriteFormActions(resp *http.Response, prefix string) error {
 	ct := resp.Header.Get("Content-Type")
 	if !strings.HasPrefix(ct, "text/html") {
 		return nil
@@ -167,4 +173,39 @@ func rewriteFormActions(resp *http.Response, prefix string) error {
 	resp.ContentLength = int64(len(rewritten))
 
 	return nil
+}
+
+func (t *Tunnel) filterHeaders(req *httputil.ProxyRequest, hdrs []string) {
+	// strip out headers we don't want to pass to the endpoint
+	for header := range req.In.Header {
+		if !slices.Contains(hdrs, header) {
+			req.Out.Header.Del(header)
+		}
+	}
+}
+
+func (t *Tunnel) filterCookies(req *httputil.ProxyRequest) {
+	// skip of tracker is not set up
+	if t.key == "" || t.tracker == nil {
+		return
+	}
+
+	// skip of no cookies set
+	cookies := req.In.Cookies()
+	if len(cookies) == 0 {
+		return
+	}
+
+	// delete outbound cookie header
+	req.Out.Header.Del("Cookie")
+
+	// find any tracked cookies and add back
+	for _, c := range cookies {
+		if t.tracker.Found(t.key, c.Name) {
+			req.Out.Header.Add("Cookie", c.String())
+			continue
+		}
+
+		t.logger.Debug("dropped untracked cookie", "key", t.key, "name", c.Name)
+	}
 }

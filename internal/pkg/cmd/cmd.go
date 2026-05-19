@@ -17,7 +17,6 @@ import (
 	"github.com/andrewheberle/simplecommand/vipercommand"
 	"github.com/andrewheberle/tunneller/internal/pkg/regexpflag"
 	"github.com/andrewheberle/tunneller/internal/pkg/server"
-	"github.com/andrewheberle/tunneller/internal/pkg/tunneller"
 	"github.com/bep/simplecobra"
 	sloghttp "github.com/samber/slog-http"
 	"golang.org/x/crypto/ssh"
@@ -63,14 +62,14 @@ func (c *rootCommand) Init(cd *simplecobra.Commandeer) error {
 	cmd.Flags().StringVar(&c.sshhost, "ssh", "", "SSH jump host address")
 	cmd.Flags().StringSliceVar(&c.keys, "ssh.key", []string{}, "SSH key(s) to load for jump host authentication")
 	cmd.Flags().StringVar(&c.sshknownhosts, "ssh.knownhosts", "", "SSH known_hosts file to verify jump host identity")
-	cmd.Flags().StringVar(&c.sshuser, "ssh.user", "jump", "SSH user to use for jump host")
-	cmd.Flags().DurationVar(&c.sshtimeout, "ssh.timeout", time.Minute*5, "Idle timeout for SSH jump host connections")
-	cmd.Flags().StringVar(&c.sshport, "ssh.port", "22", "SSH port for jump host")
+	cmd.Flags().StringVar(&c.sshuser, "ssh.user", server.DefaultSSHUser, "SSH user to use for jump host")
+	cmd.Flags().DurationVar(&c.sshtimeout, "ssh.timeout", server.DefaultSSHTimeout, "Idle timeout for SSH jump host connections")
+	cmd.Flags().StringVar(&c.sshport, "ssh.port", server.DefaultSSHPort, "SSH port for jump host")
 	cmd.Flags().Var(c.allowEndpoint, "endpoint.allow", "Allowed remote endpoints (regexp)")
 	cmd.Flags().StringVar(&c.endpointca, "endpoint.ca", "", "CA bundle to verify HTTPS connections to endpoints")
 	cmd.Flags().Var(c.allowEndpointPort, "endpoint.port.allow", "Allowed remote endpoint ports (regexp)")
 	cmd.Flags().Var(c.allowEndpointScheme, "endpoint.scheme.allow", "Allowed remote endpoint schemes (regexp)")
-	cmd.Flags().StringSliceVar(&c.allowEndpointHeaders, "endpoint.headers.allow", []string{"Authorization", "Connection", "Cache-Control", "Upgrade-Insecure-Requests", "User-Agent", "Accept", "Accept-Encoding", "Accept-Language", "Cookie", "Referer", "Content-Length", "Content-Type", "Origin"}, "Allowed HTTP headers to pass to endpoint (canonical form)")
+	cmd.Flags().StringSliceVar(&c.allowEndpointHeaders, "endpoint.headers.allow", server.DefaultEndpointHeadersAllow(), "Allowed HTTP headers to pass to endpoint (canonical form)")
 	cmd.MarkFlagFilename("ssh")
 
 	return nil
@@ -90,17 +89,10 @@ func (c *rootCommand) PreRun(this, runner *simplecobra.Commandeer) error {
 		c.allowEndpointHeaders = append(c.allowEndpointHeaders, "Host")
 	}
 
-	srv := &server.Server{
-		Tunnels:                make(map[string]*tunneller.Tunnel),
-		SSHHost:                c.sshhost,
-		SSHPort:                c.sshport,
-		SSHUser:                c.sshuser,
-		SSHTimeout:             c.sshtimeout,
-		AllowedEndpoint:        c.allowEndpoint.Regexp(),
-		AllowedEndpointPort:    c.allowEndpointPort.Regexp(),
-		AllowedEndpointScheme:  c.allowEndpointScheme.Regexp(),
-		AllowedEndpointHeaders: c.allowEndpointHeaders,
-		Logger:                 c.logger,
+	// pass our logger
+	opts := []server.ServerOption{
+		server.WithTimeout(c.sshtimeout),
+		server.WithLogger(c.logger),
 	}
 
 	// load any ssh keys
@@ -131,10 +123,20 @@ func (c *rootCommand) PreRun(this, runner *simplecobra.Commandeer) error {
 		} else {
 			// set up agent if any keys were added
 			if len(l) > 0 {
-				srv.Agent = a
+				opts = append(opts, server.WithAgent(a))
 			}
 		}
 	}
+
+	srv, err := server.New(c.sshuser, c.sshhost, c.sshport, opts...)
+	if err != nil {
+		return err
+	}
+
+	srv.AllowedEndpoint = c.allowEndpoint.Regexp()
+	srv.AllowedEndpointPort = c.allowEndpointPort.Regexp()
+	srv.AllowedEndpointScheme = c.allowEndpointScheme.Regexp()
+	srv.AllowedEndpointHeaders = c.allowEndpointHeaders
 
 	// load known hosts file if passed
 	if c.sshknownhosts != "" {
