@@ -33,3 +33,9 @@ func WithRewriteContentRule(rewrite ...*tunneller.RewriteContentRule) ServerOpti
 		s.rewrites = append(s.rewrites, rewrite...)
 	}
 }
+
+func WithPrefix(prefix string) ServerOption {
+	return func(s *Server) {
+		s.prefix = prefix
+	}
+}
