@@ -37,6 +37,8 @@ type rootCommand struct {
 	allowEndpointPort    *regexpflag.Flag
 	allowEndpointScheme  *regexpflag.Flag
 	allowEndpointHeaders []string
+	metricsenabled       bool
+	metricspath          string
 	debug                bool
 
 	mux    http.Handler
@@ -63,6 +65,8 @@ func (c *rootCommand) Init(cd *simplecobra.Commandeer) error {
 	cmd.Flags().StringSliceVar(&c.keys, "ssh.key", []string{}, "SSH key(s) to load for jump host authentication")
 	cmd.Flags().StringVar(&c.sshknownhosts, "ssh.knownhosts", "", "SSH known_hosts file to verify jump host identity")
 	cmd.Flags().StringVar(&c.sshuser, "ssh.user", server.DefaultSSHUser, "SSH user to use for jump host")
+	cmd.Flags().StringVar(&c.metricspath, "metrics.path", "/metrics", "Path for Prometheus metrics")
+	cmd.Flags().BoolVar(&c.metricsenabled, "metrics.enabled", true, "Enable Prometheus metrics")
 	cmd.Flags().DurationVar(&c.sshtimeout, "ssh.timeout", server.DefaultSSHTimeout, "Idle timeout for SSH jump host connections")
 	cmd.Flags().StringVar(&c.sshport, "ssh.port", server.DefaultSSHPort, "SSH port for jump host")
 	cmd.Flags().Var(c.allowEndpoint, "endpoint.allow", "Allowed remote endpoints (regexp)")
@@ -181,6 +185,13 @@ func (c *rootCommand) PreRun(this, runner *simplecobra.Commandeer) error {
 
 	mux := http.NewServeMux()
 	mux.Handle("/{scheme}/{endpoint}/{port}/", srv)
+	mux.HandleFunc("/-/healthy", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("Healthy"))
+	})
+	if c.metricspath != "" {
+		mux.Handle(c.metricspath, srv.MetricsHandler())
+	}
 	handler := sloghttp.Recovery(mux)
 	handler = sloghttp.New(c.logger)(handler)
 	c.mux = handler
