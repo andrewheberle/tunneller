@@ -42,6 +42,7 @@ type rootCommand struct {
 	metricsenabled       bool
 	metricspath          string
 	rewrites             []string
+	prefix               string
 	debug                bool
 
 	mux    http.Handler
@@ -78,6 +79,7 @@ func (c *rootCommand) Init(cd *simplecobra.Commandeer) error {
 	cmd.Flags().Var(c.allowEndpointScheme, "endpoint.scheme.allow", "Allowed remote endpoint schemes (regexp)")
 	cmd.Flags().StringSliceVar(&c.allowEndpointHeaders, "endpoint.headers.allow", server.DefaultEndpointHeadersAllow(), "Allowed HTTP headers to pass to endpoint (canonical form)")
 	cmd.Flags().StringArrayVar(&c.rewrites, "endpoint.html.rewrite", []string{}, "Rewrites to perform on \"text/html\" responses")
+	cmd.Flags().StringVar(&c.prefix, "prefix", "", "Prefix for HTTP proxy endpoint")
 	cmd.MarkFlagFilename("ssh")
 
 	return nil
@@ -97,15 +99,24 @@ func (c *rootCommand) PreRun(this, runner *simplecobra.Commandeer) error {
 		c.allowEndpointHeaders = append(c.allowEndpointHeaders, "Host")
 	}
 
-	// pass our logger and timeout
+	// pass our logger, and timeout
 	opts := []server.ServerOption{
 		server.WithTimeout(c.sshtimeout),
 		server.WithLogger(c.logger),
 	}
 
+	// add prefix if set
+	if c.prefix != "" {
+		if !strings.HasPrefix(c.prefix, "/") {
+			return fmt.Errorf("prefix must start with a /")
+		}
+
+		opts = append(opts, server.WithPrefix(c.prefix))
+	}
+
 	// add any rewrites
 	if len(c.rewrites) > 0 {
-		rewriteRegex := regexp.MustCompile("^s#(.*)#(.*)#$")
+		rewriteRegex := regexp.MustCompile("^s#(.*)#(.*)#$|^s/(.*)/(.*)/$")
 		rewrites := make([]*tunneller.RewriteContentRule, 0)
 		for _, r := range c.rewrites {
 			sub := rewriteRegex.FindStringSubmatch(r)
@@ -129,8 +140,6 @@ func (c *rootCommand) PreRun(this, runner *simplecobra.Commandeer) error {
 
 		opts = append(opts, server.WithRewriteContentRule(rewrites...))
 	}
-
-	c.logger.Debug("got rewrites", "count", len(c.rewrites))
 
 	// load any ssh keys
 	if len(c.keys) > 0 {

@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/url"
 	"regexp"
 	"sync"
 	"time"
@@ -36,6 +37,7 @@ type Server struct {
 	tracker     *tracker.CookieTracker
 	metricsPath string
 	rewrites    []*tunneller.RewriteContentRule
+	prefix      string
 
 	host    string
 	port    string
@@ -68,6 +70,7 @@ func New(user, host, port string, opts ...ServerOption) (*Server, error) {
 		logger:                 slog.New(slog.DiscardHandler),
 		AllowedEndpointHeaders: DefaultEndpointHeadersAllow(),
 		reg:                    prometheus.NewRegistry(),
+		prefix:                 "/",
 	}
 
 	for _, o := range opts {
@@ -159,7 +162,15 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	t.ProxyHandler(fmt.Sprintf("/%s/%s/%s", scheme, endpoint, port), s.AllowedEndpointHeaders).ServeHTTP(w, r)
+	// set up prefix if set
+	prefix, err := url.JoinPath(s.prefix, fmt.Sprintf("/%s/%s/%s", scheme, endpoint, port))
+	if err != nil {
+		logger.Error("error with setting up prefix", "error", err)
+		http.Error(w, "error with setting up prefix", http.StatusInternalServerError)
+		return
+	}
+
+	t.ProxyHandler(prefix, s.AllowedEndpointHeaders).ServeHTTP(w, r)
 }
 
 func (s *Server) MetricsHandler() http.Handler {

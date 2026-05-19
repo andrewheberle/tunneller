@@ -17,17 +17,19 @@ tunneller [flags]
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--addr` | `:8080` | Listen address |
+| `--endpoint.allow` | `.*` | Allowed remote endpoints (regexp) |
+| `--endpoint.ca` | | CA bundle to verify HTTPS connections to endpoints |
+| `--endpoint.headers.allow` | `Accept`, `Accept-Encoding`, `Accept-Language`, `Authorization`, `Cache-Control`, `Connection`, `Content-Length`, `Content-Type`, `Cookie`, `Origin`, `Referer`, `Upgrade-Insecure-Requests`, `User-Agent` | Allowed HTTP headers to pass to endpoint (canonical form). Host header is always allowed. |
+| `--endpoint.html.rewrite` | | Rewrites to apply to `text/html` content (see below for details) |
+| `--endpoint.port.allow` | `^(80\|443)$` | Allowed endpoint ports (regexp) |
+| `--endpoint.scheme.allow` | `^http(s)?$` | Allowed endpoint schemes (regexp) |
+| `--prefix` | | Prefix for HTTP proxy endpoint |
 | `--ssh` | | SSH jump host address |
 | `--ssh.key` | | SSH private key file(s) to load for jump host authentication (repeatable) |
 | `--ssh.knownhosts` | | SSH known_hosts file to verify jump host identity |
 | `--ssh.user` | `jump` | SSH jump host user |
 | `--ssh.port` | `22` | SSH jump host port |
 | `--ssh.timeout` | `5m` | Idle timeout for SSH jump host connections |
-| `--endpoint.allow` | `.*` | Allowed remote endpoints (regexp) |
-| `--endpoint.ca` | | CA bundle to verify HTTPS connections to endpoints |
-| `--endpoint.headers.allow` | `Accept`, `Accept-Encoding`, `Accept-Language`, `Authorization`, `Cache-Control`, `Connection`, `Content-Length`, `Content-Type`, `Cookie`, `Origin`, `Referer`, `Upgrade-Insecure-Requests`, `User-Agent` | Allowed HTTP headers to pass to endpoint (canonical form). Host header is always allowed. |
-| `--endpoint.port.allow` | `^(80\|443)$` | Allowed endpoint ports (regexp) |
-| `--endpoint.scheme.allow` | `^http(s)?$` | Allowed endpoint schemes (regexp) |
 
 #### Setting Flags from the Environment
 
@@ -152,7 +154,7 @@ In addition, custom content rewrites can be provided via the
 `--endpoint.html.rewrite` option as follows:
 
 ```sh
-tunneller [options] --endpoint.html.rewrite "s#regex#template#"
+tunneller --endpoint.html.rewrite "s#regex#template#"
 ```
 
 The `regex` is a Go RE2 regular expression that must contain a single capture
@@ -161,6 +163,9 @@ group.
 Template is a Go `template` that is passed the URL prefix as `{{ .Prefix }}`
 and the captured string as `{{ .Captured }}`.
 
+The overall syntax is somewhat inspired by `sed` with the seperator between
+regexp and template being `#` or `/`.
+
 The unmatched content of the regexp is wrapped back around the templated
 response.
 
@@ -168,6 +173,20 @@ So for example to replace absolute URLs in all `href` properties a rewrite
 as follows may be appropriate:
 
 ```sh
-tunneller [options] \
-  --endpoint.html.rewrite 's#href="(/.*)"#{{ .Prefix }}{{ .Captured }}#'
+tunneller --endpoint.html.rewrite 's#href=["'](/.*)["']#{{ .Prefix }}{{ .Captured }}#'
+```
+
+The above would make the following changes for a device accessed via the
+URL path of `/https/192.168.10.1/443/` as follows:
+
+```html
+<a href="relative/link">This is unchanged</a>
+<a href="/absolute/link">This will be updated</a>
+```
+
+Would become:
+
+```html
+<a href="relative/link">This is unchanged</a>
+<a href="/https/192.168.10.1/443/absolute/link">This will be updated</a>
 ```
