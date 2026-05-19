@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"regexp"
 	"slices"
 	"strings"
 )
@@ -129,10 +128,6 @@ func (t *Tunnel) rewriteCookiePaths(resp *http.Response, prefix string) {
 	}
 }
 
-// formActionRe matches form action attributes with single or double quoted
-// absolute paths
-var formActionRe = regexp.MustCompile(`action=(["'])(\/[^"']*)(["'])`)
-
 // rewriteContent rewrites absolute path action attributes in HTML form
 // tags so that form submissions include the service prefix. Only responses
 // with a Content-Type of text/html are modified. The entire response body is
@@ -179,21 +174,26 @@ func (t *Tunnel) rewriteContent(resp *http.Response, prefix string) error {
 		body = b
 	}
 
-	rewritten := formActionRe.ReplaceAllFunc(body, func(match []byte) []byte {
-		sub := formActionRe.FindSubmatch(match)
-		if len(sub) != 4 {
-			return match
-		}
-		quote := sub[1]
-		path := sub[2]
+	rewritten := body
+	for _, rewrite := range t.rewriteContentRules {
+		rewritten = rewrite.re.ReplaceAllFunc(rewritten, func(match []byte) []byte {
+			subs := rewrite.re.FindSubmatch(match)
+			if len(subs) != 2 {
+				panic(fmt.Sprintf("regexp %q must have exactly one capture group", rewrite.re.String()))
+			}
 
-		newPath := append([]byte(prefix), path...)
-		result := []byte("action=")
-		result = append(result, quote...)
-		result = append(result, newPath...)
-		result = append(result, quote...)
-		return result
-	})
+			captured := subs[1]
+			replacement := rewrite.transform(prefix, captured)
+
+			// Reconstruct: preserve surrounding non-captured parts of the match
+			idx := bytes.Index(match, captured)
+			if idx < 0 {
+				return match
+			}
+			return append(append(match[:idx:idx], replacement...), match[idx+len(captured):]...)
+		})
+
+	}
 
 	resp.Body = io.NopCloser(bytes.NewReader(rewritten))
 	resp.Header.Set("Content-Length", fmt.Sprintf("%d", len(rewritten)))

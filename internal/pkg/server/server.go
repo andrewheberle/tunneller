@@ -35,6 +35,7 @@ type Server struct {
 	logger      *slog.Logger
 	tracker     *tracker.CookieTracker
 	metricsPath string
+	rewrites    []*tunneller.RewriteContentRule
 
 	host    string
 	port    string
@@ -204,6 +205,9 @@ func (s *Server) getOrCreateTunnel(logger *slog.Logger, scheme, endpoint, port s
 	}
 	if s.tracker != nil {
 		opts = append(opts, tunneller.WithCookieTracker(s.tracker))
+	}
+	if len(s.rewrites) > 0 {
+		opts = append(opts, tunneller.WithRewriteContentRule(s.rewrites...))
 	}
 
 	t, err := tunneller.NewTunnel(ep, func() {

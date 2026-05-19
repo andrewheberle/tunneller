@@ -142,3 +142,32 @@ be changed using the `--metrics.path` flag or disabled completely with the
 | `tunneller_tunnel_established_total` | Counter | Total number of SSH tunnels established successfully |
 | `tunneller_tunnel_error_total`       | Counter | Total number of errors when establishing SSH tunnels |
 | `tunneller_tunnel_total`             | Counter | Total number of SSH tunnels attempted to be established |
+
+## Content Rewrites
+
+By default form "action" properties that reference absolute paths will be
+rewritten based on the prefix used to connect to the endpoint.
+
+In addition, custom content rewrites can be provided via the
+`--endpoint.html.rewrite` option as follows:
+
+```sh
+tunneller [options] --endpoint.html.rewrite "s#regex#template#"
+```
+
+The `regex` is a Go RE2 regular expression that must contain a single capture
+group.
+
+Template is a Go `template` that is passed the URL prefix as `{{ .Prefix }}`
+and the captured string as `{{ .Captured }}`.
+
+The unmatched content of the regexp is wrapped back around the templated
+response.
+
+So for example to replace absolute URLs in all `href` properties a rewrite
+as follows may be appropriate:
+
+```sh
+tunneller [options] \
+  --endpoint.html.rewrite 's#href="(/.*)"#{{ .Prefix }}{{ .Captured }}#'
+```
