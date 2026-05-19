@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -17,6 +18,7 @@ import (
 	"github.com/andrewheberle/simplecommand/vipercommand"
 	"github.com/andrewheberle/tunneller/internal/pkg/regexpflag"
 	"github.com/andrewheberle/tunneller/internal/pkg/server"
+	"github.com/andrewheberle/tunneller/internal/pkg/tunneller"
 	"github.com/bep/simplecobra"
 	sloghttp "github.com/samber/slog-http"
 	"golang.org/x/crypto/ssh"
@@ -39,6 +41,7 @@ type rootCommand struct {
 	allowEndpointHeaders []string
 	metricsenabled       bool
 	metricspath          string
+	rewrites             []string
 	debug                bool
 
 	mux    http.Handler
@@ -74,6 +77,7 @@ func (c *rootCommand) Init(cd *simplecobra.Commandeer) error {
 	cmd.Flags().Var(c.allowEndpointPort, "endpoint.port.allow", "Allowed remote endpoint ports (regexp)")
 	cmd.Flags().Var(c.allowEndpointScheme, "endpoint.scheme.allow", "Allowed remote endpoint schemes (regexp)")
 	cmd.Flags().StringSliceVar(&c.allowEndpointHeaders, "endpoint.headers.allow", server.DefaultEndpointHeadersAllow(), "Allowed HTTP headers to pass to endpoint (canonical form)")
+	cmd.Flags().StringArrayVar(&c.rewrites, "endpoint.html.rewrite", []string{}, "Rewrites to perform on \"text/html\" responses")
 	cmd.MarkFlagFilename("ssh")
 
 	return nil
@@ -93,11 +97,40 @@ func (c *rootCommand) PreRun(this, runner *simplecobra.Commandeer) error {
 		c.allowEndpointHeaders = append(c.allowEndpointHeaders, "Host")
 	}
 
-	// pass our logger
+	// pass our logger and timeout
 	opts := []server.ServerOption{
 		server.WithTimeout(c.sshtimeout),
 		server.WithLogger(c.logger),
 	}
+
+	// add any rewrites
+	if len(c.rewrites) > 0 {
+		rewriteRegex := regexp.MustCompile("^s#(.*)#(.*)#$")
+		rewrites := make([]*tunneller.RewriteContentRule, 0)
+		for _, r := range c.rewrites {
+			sub := rewriteRegex.FindStringSubmatch(r)
+			if sub == nil {
+				return fmt.Errorf("the provided rewrite was not valid %q", r)
+			}
+
+			if len(sub) != 3 {
+				return fmt.Errorf("the provided rewrite was not valid %q matches %d", r, len(sub))
+			}
+
+			c.logger.Debug("setting up rewrite rule", "regex", sub[1], "template", sub[2])
+
+			re, err := tunneller.NewRewriteContentRule(sub[1], sub[2])
+			if err != nil {
+				return err
+			}
+
+			rewrites = append(rewrites, re)
+		}
+
+		opts = append(opts, server.WithRewriteContentRule(rewrites...))
+	}
+
+	c.logger.Debug("got rewrites", "count", len(c.rewrites))
 
 	// load any ssh keys
 	if len(c.keys) > 0 {

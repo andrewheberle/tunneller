@@ -53,3 +53,9 @@ func WithLogger(logger *slog.Logger) TunnelOption {
 		t.logger = logger
 	}
 }
+
+func WithRewriteContentRule(rewrite ...*RewriteContentRule) TunnelOption {
+	return func(t *Tunnel) {
+		t.rewriteContentRules = append(t.rewriteContentRules, rewrite...)
+	}
+}

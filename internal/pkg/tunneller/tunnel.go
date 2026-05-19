@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"regexp"
 	"sync"
 	"time"
 
@@ -34,6 +35,8 @@ type Tunnel struct {
 	onTeardown    func() // called by the tunnel when it tears itself down
 	agent         agent.Agent
 	defaultScheme string
+
+	rewriteContentRules []*RewriteContentRule
 }
 
 // NewTunnel establishes an SSH connection using the provided endpoint and
@@ -49,10 +52,27 @@ func NewTunnel(ep SSHEndpoint, onTeardown func(), opts ...TunnelOption) (*Tunnel
 		hostKeyCallback: nil,
 		tlsConfig:       &tls.Config{InsecureSkipVerify: true},
 		logger:          slog.New(slog.DiscardHandler),
+
+		// default of match for form action attributes with single or double quoted absolute paths
+		rewriteContentRules: []*RewriteContentRule{
+			{
+				re: regexp.MustCompile(`action=["'](\/[^"']*)["']`),
+				transform: func(prefix string, captured []byte) []byte {
+					return append([]byte(prefix), captured...)
+				},
+			},
+		},
 	}
 
 	for _, o := range opts {
 		o(t)
+	}
+
+	// check regexp's
+	for _, rewrite := range t.rewriteContentRules {
+		if rewrite.re.NumSubexp() != 1 {
+			return nil, fmt.Errorf("tunnel: rewrite regexp %q must have exactly one capture group", rewrite.re.String())
+		}
 	}
 
 	if t.hostKeyCallback == nil {
