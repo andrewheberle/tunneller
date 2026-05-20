@@ -124,18 +124,31 @@ func (c *rootCommand) PreRun(this, runner *simplecobra.Commandeer) error {
 				return fmt.Errorf("the provided rewrite was not valid %q", r)
 			}
 
-			if len(sub) != 3 {
+			if len(sub) != 5 {
 				return fmt.Errorf("the provided rewrite was not valid %q matches %d", r, len(sub))
 			}
 
-			c.logger.Debug("setting up rewrite rule", "regex", sub[1], "template", sub[2])
+			if sub[1] != "" && sub[2] != "" {
+				c.logger.Debug("setting up rewrite rule", "regex", sub[1], "template", sub[2])
 
-			re, err := tunneller.NewRewriteContentRule(sub[1], sub[2])
-			if err != nil {
-				return err
+				re, err := tunneller.NewRewriteContentRule(sub[1], sub[2])
+				if err != nil {
+					return err
+				}
+
+				rewrites = append(rewrites, re)
+			} else if sub[3] != "" && sub[4] != "" {
+				c.logger.Debug("setting up rewrite rule", "regex", sub[3], "template", sub[4])
+
+				re, err := tunneller.NewRewriteContentRule(sub[3], sub[4])
+				if err != nil {
+					return err
+				}
+
+				rewrites = append(rewrites, re)
+			} else {
+				return fmt.Errorf("the provided rewrite was not valid (could not find regexp and template)")
 			}
-
-			rewrites = append(rewrites, re)
 		}
 
 		opts = append(opts, server.WithRewriteContentRule(rewrites...))
