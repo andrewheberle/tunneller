@@ -116,7 +116,7 @@ func (c *rootCommand) PreRun(this, runner *simplecobra.Commandeer) error {
 
 	// add any rewrites
 	if len(c.rewrites) > 0 {
-		rewriteRegex := regexp.MustCompile("^s#(.*)#(.*)#$|^s/(.*)/(.*)/$")
+		rewriteRegex := regexp.MustCompile("^s#([^#\r\n]+)#([^#\r\n]+)#$|^s/([^/\r\n]+)/([^/\r\n]+)/$")
 		rewrites := make([]*tunneller.RewriteContentRule, 0)
 		for _, r := range c.rewrites {
 			sub := rewriteRegex.FindStringSubmatch(r)
