@@ -147,8 +147,8 @@ be changed using the `--metrics.path` flag or disabled completely with the
 
 ## Content Rewrites
 
-By default form "action" properties that reference absolute paths will be
-rewritten based on the prefix used to connect to the endpoint.
+By default `action`, `href` and `src` properties that reference absolute paths
+will be rewritten based on the prefix used to connect to the endpoint.
 
 In addition, custom content rewrites can be provided via the
 `--endpoint.html.rewrite` option as follows:

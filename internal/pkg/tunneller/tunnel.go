@@ -53,10 +53,10 @@ func NewTunnel(ep SSHEndpoint, onTeardown func(), opts ...TunnelOption) (*Tunnel
 		tlsConfig:       &tls.Config{InsecureSkipVerify: true},
 		logger:          slog.New(slog.DiscardHandler),
 
-		// default of match for form action attributes with single or double quoted absolute paths
+		// default of match for action/src/href attributes with single or double quoted absolute paths
 		rewriteContentRules: []*RewriteContentRule{
 			{
-				re: regexp.MustCompile(`action=["'](\/[^"']*)["']`),
+				re: regexp.MustCompile(`(?:action|src|href)=["'](\/[^"']*)["']`),
 				transform: func(prefix string, captured []byte) []byte {
 					return append([]byte(prefix), captured...)
 				},
