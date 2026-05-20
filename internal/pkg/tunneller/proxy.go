@@ -87,17 +87,25 @@ func (t *Tunnel) rewriteLocation(loc, prefix string) (string, error) {
 		return loc, fmt.Errorf("parse location %q: %w", loc, err)
 	}
 
-	// Absolute URL pointing at the endpoint - rewrite to our prefix
+	// Absolute URL - rewrite to our prefix
 	if u.IsAbs() {
 		u.Scheme = ""
 		u.Host = ""
-		u.Path = prefix + "/" + strings.TrimPrefix(u.Path, "/")
+		p, err := url.JoinPath(prefix, u.Path)
+		if err != nil {
+			return loc, err
+		}
+		u.Path = p
 		return u.String(), nil
 	}
 
-	// Relative path - prepend prefix
-	if strings.HasPrefix(u.Path, "/") {
-		u.Path = prefix + u.Path
+	// Relative path - prepend prefix (only if not already present)
+	if strings.HasPrefix(u.Path, "/") && !strings.HasPrefix(u.Path, prefix) {
+		p, err := url.JoinPath(prefix, u.Path)
+		if err != nil {
+			return loc, err
+		}
+		u.Path = p
 		return u.String(), nil
 	}
 
