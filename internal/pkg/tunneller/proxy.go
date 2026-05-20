@@ -89,32 +89,25 @@ func (t *Tunnel) rewriteLocation(loc, prefix string) (string, error) {
 
 	// Absolute URL - rewrite to our prefix
 	if u.IsAbs() {
-		t.logger.Debug("got absolute URL for Location header", "loc", loc)
+		t.logger.Debug("got absolute URL for Location header, making non-absolute", "location", u.String())
 		u.Scheme = ""
 		u.Host = ""
-		p, err := url.JoinPath(prefix, u.Path)
-		if err != nil {
-			return loc, err
-		}
-		u.Path = p
-		t.logger.Debug("rewrote Location header", "loc", u.String())
-		return u.String(), nil
 	}
 
-	// Relative path - prepend prefix (only if not already present)
+	// Absolute path - prepend prefix (only if not already present)
 	if strings.HasPrefix(u.Path, "/") && !strings.HasPrefix(u.Path, prefix) {
-		t.logger.Debug("got relative URL for Location header", "loc", loc)
+		t.logger.Debug("got absolute path for Location header", "location", u.String())
 		p, err := url.JoinPath(prefix, u.Path)
 		if err != nil {
 			return loc, err
 		}
 		u.Path = p
-		t.logger.Debug("rewrote Location header", "loc", u.String())
+		t.logger.Debug("rewrote Location header", "location", u.String())
 		return u.String(), nil
 	}
 
-	t.logger.Debug("no rewrite of Location header required", "loc", u.String())
-	return loc, nil
+	t.logger.Debug("no rewrite of Location header required", "location", u.String())
+	return u.String(), nil
 }
 
 // rewriteCookiePaths rewrites the Path attribute of every Set-Cookie header in
