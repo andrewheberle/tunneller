@@ -163,7 +163,7 @@ func (t *Tunnel) rewriteContent(resp *http.Response, prefix string) error {
 
 			return nil
 		}(); err != nil {
-			return fmt.Errorf("rewriteFormActions: sniff content type: %w", err)
+			return fmt.Errorf("rewriteContent: sniff content type: %w", err)
 		}
 	}
 	if !strings.HasPrefix(ct, "text/html") {
@@ -175,7 +175,7 @@ func (t *Tunnel) rewriteContent(resp *http.Response, prefix string) error {
 		b, err := io.ReadAll(resp.Body)
 		resp.Body.Close()
 		if err != nil {
-			return fmt.Errorf("rewriteFormActions: read body: %w", err)
+			return fmt.Errorf("rewriteContent: read body: %w", err)
 		}
 		body = b
 	}
@@ -184,11 +184,19 @@ func (t *Tunnel) rewriteContent(resp *http.Response, prefix string) error {
 	for _, rewrite := range t.rewriteContentRules {
 		rewritten = rewrite.re.ReplaceAllFunc(rewritten, func(match []byte) []byte {
 			subs := rewrite.re.FindSubmatch(match)
-			if len(subs) != 2 {
-				panic(fmt.Sprintf("regexp %q must have exactly one capture group", rewrite.re.String()))
+			if subs == nil {
+				panic("rewriteContent: got no matches - should not happen")
 			}
 
-			captured := subs[1]
+			captured := func() []byte {
+				for _, s := range subs[1:] {
+					if !bytes.Equal(s, []byte("")) {
+						return s
+					}
+				}
+
+				panic("rewriteContent: found no matches - should not happen")
+			}()
 			replacement := rewrite.transform(prefix, captured)
 
 			// Reconstruct: preserve surrounding non-captured parts of the match
