@@ -68,13 +68,6 @@ func NewTunnel(ep SSHEndpoint, onTeardown func(), opts ...TunnelOption) (*Tunnel
 		o(t)
 	}
 
-	// check regexp's
-	for _, rewrite := range t.rewriteContentRules {
-		if rewrite.re.NumSubexp() != 1 {
-			return nil, fmt.Errorf("tunnel: rewrite regexp %q must have exactly one capture group", rewrite.re.String())
-		}
-	}
-
 	if t.hostKeyCallback == nil {
 		return nil, fmt.Errorf("tunnel: host key callback is required")
 	}
