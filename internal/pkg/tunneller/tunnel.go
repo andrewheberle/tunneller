@@ -56,7 +56,7 @@ func NewTunnel(ep SSHEndpoint, onTeardown func(), opts ...TunnelOption) (*Tunnel
 		// default of match for action/src/href attributes with single or double quoted absolute paths
 		rewriteContentRules: []*RewriteContentRule{
 			{
-				re: regexp.MustCompile(`(?:action|src|href)=["'](\/[^"']*)["']`),
+				re: regexp.MustCompile(`(?:action|src|href)=(?:"(\/[^"\n\r]*)"|'(\/[^'\n\r]*)'|(\/[^\s"'\n\r>]*))`),
 				transform: func(prefix string, captured []byte) []byte {
 					return append([]byte(prefix), captured...)
 				},

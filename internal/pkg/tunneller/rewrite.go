@@ -23,10 +23,6 @@ func NewRewriteContentRule(reg, tmpl string) (*RewriteContentRule, error) {
 		return nil, err
 	}
 
-	if re.NumSubexp() != 1 {
-		return nil, fmt.Errorf("rewrite regexp must have one capture group")
-	}
-
 	t, err := template.New("rewrite").Parse(tmpl)
 	if err != nil {
 		return nil, err

@@ -157,8 +157,20 @@ In addition, custom content rewrites can be provided via the
 tunneller --endpoint.html.rewrite "s#regex#template#"
 ```
 
-The `regex` is a Go RE2 regular expression that must contain a single capture
-group.
+The `regex` is a Go RE2 regular expression that must contain a valid RE2
+regular expression that will match at most one substring.
+
+For example, althrough all of the following three regular expressions are
+valid however only the first two will work as expected:
+
+```re
+foo="([^"\n\r]*)"
+foo=("[^"\n\r]*")|foo=('[^'\n\r]*')
+(foo|bar)="([^"\n\r]*)"
+```
+
+The last form will not yield the expected results and unfortuantely will not
+cause a parsing error.
 
 Template is a Go `template` that is passed the URL prefix as `{{ .Prefix }}`
 and the captured string as `{{ .Captured }}`.
