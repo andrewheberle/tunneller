@@ -1,3 +1,5 @@
+github.com/andrewheberle/regexpflag v1.0.0 h1:6oQhuNWlvqaPv5mPQMET+bTE2kYSVldljM311T+lAKQ=
+github.com/andrewheberle/regexpflag v1.0.0/go.mod h1:SOHaM4hemWpqMzseUbHMvfohgvwyrfX6jKv+7O/r2fs=
 github.com/andrewheberle/simplecommand v0.5.1 h1:zgTPMj2hf5baFE09fW/qb4VNhZL8v7TuZo6YsK/nbvo=
 github.com/andrewheberle/simplecommand v0.5.1/go.mod h1:XQOLdO2a9/ZQMl5+MuBTeBzct2vsR3nIrJD3fRJlNmI=
 github.com/andrewheberle/simplecommand/vipercommand v0.5.2 h1:rke7qupOXPTwjMF6ti683NApi/CVEjaz127Nn2K1GRU=

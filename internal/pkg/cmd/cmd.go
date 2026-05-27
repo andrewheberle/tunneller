@@ -14,9 +14,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/andrewheberle/regexpflag"
 	"github.com/andrewheberle/simplecommand"
 	"github.com/andrewheberle/simplecommand/vipercommand"
-	"github.com/andrewheberle/tunneller/internal/pkg/regexpflag"
 	"github.com/andrewheberle/tunneller/internal/pkg/server"
 	"github.com/andrewheberle/tunneller/internal/pkg/tunneller"
 	"github.com/bep/simplecobra"
