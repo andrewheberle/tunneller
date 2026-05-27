@@ -3,7 +3,7 @@ module github.com/andrewheberle/tunneller
 go 1.26.3
 
 require (
-	github.com/andrewheberle/regexpflag v1.0.0
+	github.com/andrewheberle/regexpflag v1.0.2
 	github.com/andrewheberle/simplecommand v0.5.1
 	github.com/andrewheberle/simplecommand/vipercommand v0.5.2
 	github.com/bep/simplecobra v0.7.0
