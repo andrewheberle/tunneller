@@ -94,8 +94,11 @@ func (t *Tunnel) rewriteLocation(loc, prefix string) (string, error) {
 		u.Host = ""
 	}
 
-	// Absolute path - prepend prefix (only if not already present)
-	if strings.HasPrefix(u.Path, "/") && !strings.HasPrefix(u.Path, prefix) {
+	// Absolute path - prepend prefix (only if not already present).
+	// Reject protocol-relative and backslash-based forms (e.g. "//evil.com", "/\\evil.com").
+	if strings.HasPrefix(u.Path, "/") &&
+		(len(u.Path) == 1 || (u.Path[1] != '/' && u.Path[1] != '\\')) &&
+		!strings.HasPrefix(u.Path, prefix) {
 		t.logger.Debug("got absolute path for Location header", "location", u.String())
 		p, err := url.JoinPath(prefix, u.Path)
 		if err != nil {
