@@ -80,7 +80,7 @@ func (c *rootCommand) Init(cd *simplecobra.Commandeer) error {
 	cmd.Flags().StringSliceVar(&c.allowEndpointHeaders, "endpoint.headers.allow", server.DefaultEndpointHeadersAllow(), "Allowed HTTP headers to pass to endpoint (canonical form)")
 	cmd.Flags().StringArrayVar(&c.rewrites, "endpoint.html.rewrite", []string{}, "Rewrites to perform on \"text/html\" responses")
 	cmd.Flags().StringVar(&c.prefix, "prefix", "", "Prefix for HTTP proxy endpoint")
-	cmd.MarkFlagFilename("ssh")
+	_ = cmd.MarkFlagFilename("ssh")
 
 	return nil
 }
@@ -242,7 +242,7 @@ func (c *rootCommand) PreRun(this, runner *simplecobra.Commandeer) error {
 	mux.Handle("/{scheme}/{endpoint}/{port}/", srv)
 	mux.HandleFunc("/-/healthy", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("Healthy"))
+		_, _ = w.Write([]byte("Healthy"))
 	})
 	if c.metricspath != "" {
 		mux.Handle(c.metricspath, srv.MetricsHandler())

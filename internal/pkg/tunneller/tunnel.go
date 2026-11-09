@@ -29,12 +29,11 @@ type Tunnel struct {
 	tracker         *tracker.CookieTracker
 	logger          *slog.Logger
 
-	mu            sync.Mutex
-	lastUsed      time.Time
-	stopTimer     *time.Timer
-	onTeardown    func() // called by the tunnel when it tears itself down
-	agent         agent.Agent
-	defaultScheme string
+	mu         sync.Mutex
+	lastUsed   time.Time
+	stopTimer  *time.Timer
+	onTeardown func() // called by the tunnel when it tears itself down
+	agent      agent.Agent
 
 	rewriteContentRules []*RewriteContentRule
 }
@@ -127,7 +126,9 @@ func (t *Tunnel) teardown() {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	t.client.Close()
+	if err := t.client.Close(); err != nil {
+		t.logger.Warn("error closing ssh client connection", "error", err)
+	}
 	if t.onTeardown != nil {
 		t.onTeardown()
 	}

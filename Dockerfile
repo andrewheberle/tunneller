@@ -1,4 +1,5 @@
-FROM gcr.io/distroless/base-debian13:nonroot@sha256:a557d784ac275c287d2bdf3172f47bece8d2a0ef3c0fdefb712e95084a04a562
+FROM cgr.dev/chainguard/static:latest@sha256:fc42af33e643f20d08baf03cddcc1c02ba57052dfb02edb0d79f3fc47bcea8d9
 ARG TARGETPLATFORM
 ENTRYPOINT [ "/usr/bin/tunneller" ]
 COPY $TARGETPLATFORM/tunneller /usr/bin/
+USER 65532

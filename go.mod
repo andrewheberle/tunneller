@@ -2,6 +2,8 @@ module github.com/andrewheberle/tunneller
 
 go 1.26.3
 
+toolchain go1.27.3
+
 require (
 	github.com/andrewheberle/regexpflag v1.0.2
 	github.com/andrewheberle/simplecommand v0.5.1

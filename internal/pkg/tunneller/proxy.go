@@ -152,7 +152,9 @@ func (t *Tunnel) rewriteContent(resp *http.Response, prefix string) error {
 		// handle ,issing content type by sniffing for mime type
 		if err := func() error {
 			b, err := io.ReadAll(resp.Body)
-			resp.Body.Close()
+			if err := resp.Body.Close(); err != nil {
+				t.logger.Warn("error closing request body", "error", err)
+			}
 			if err != nil {
 				return fmt.Errorf("read body: %w", err)
 			}
@@ -176,7 +178,9 @@ func (t *Tunnel) rewriteContent(resp *http.Response, prefix string) error {
 	// read body if not already read
 	if body == nil {
 		b, err := io.ReadAll(resp.Body)
-		resp.Body.Close()
+		if err := resp.Body.Close(); err != nil {
+			t.logger.Warn("error closing request body", "error", err)
+		}
 		if err != nil {
 			return fmt.Errorf("rewriteContent: read body: %w", err)
 		}
