@@ -15,7 +15,7 @@ tunneller [flags]
 Or via Docker:
 
 ```sh
-docker run ghcr.io/andrewheberle/tunneller:v0.6.2 # x-release-please-version
+docker run ghcr.io/andrewheberle/tunneller:v0.6.3 # x-release-please-version
 ```
 
 ### Flags
