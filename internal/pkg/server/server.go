@@ -30,14 +30,13 @@ const (
 
 // server holds the active tunnel registry.
 type Server struct {
-	mu          sync.Mutex
-	tunnels     map[string]*tunneller.Tunnel
-	agent       agent.Agent
-	logger      *slog.Logger
-	tracker     *tracker.CookieTracker
-	metricsPath string
-	rewrites    []*tunneller.RewriteContentRule
-	prefix      string
+	mu       sync.Mutex
+	tunnels  map[string]*tunneller.Tunnel
+	agent    agent.Agent
+	logger   *slog.Logger
+	tracker  *tracker.CookieTracker
+	rewrites []*tunneller.RewriteContentRule
+	prefix   string
 
 	host    string
 	port    string
