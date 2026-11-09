@@ -6,9 +6,9 @@ toolchain go1.27.3
 
 require (
 	github.com/andrewheberle/regexpflag v1.0.2
-	github.com/andrewheberle/simplecommand v0.5.1
+	github.com/andrewheberle/simplecommand v0.8.0
 	github.com/andrewheberle/simplecommand/vipercommand v0.5.2
-	github.com/bep/simplecobra v0.7.0
+	github.com/bep/simplecobra v0.8.0
 	github.com/prometheus/client_golang v1.23.2
 	github.com/samber/slog-http v1.12.1
 	golang.org/x/crypto v0.51.0
