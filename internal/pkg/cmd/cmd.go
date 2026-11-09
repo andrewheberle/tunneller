@@ -16,7 +16,7 @@ import (
 
 	"github.com/andrewheberle/regexpflag"
 	"github.com/andrewheberle/simplecommand"
-	"github.com/andrewheberle/simplecommand/vipercommand"
+	"github.com/andrewheberle/simplecommand/koanfcommand"
 	"github.com/andrewheberle/tunneller/internal/pkg/server"
 	"github.com/andrewheberle/tunneller/internal/pkg/tunneller"
 	"github.com/bep/simplecobra"
@@ -48,7 +48,7 @@ type rootCommand struct {
 	mux    http.Handler
 	logger *slog.Logger
 
-	*vipercommand.Command
+	*koanfcommand.Command
 }
 
 var logLevel = new(slog.LevelVar)
@@ -285,17 +285,18 @@ func Execute(ctx context.Context, args []string) error {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: logLevel}))
 
 	rootCmd := &rootCommand{
-		Command: vipercommand.New("tunneller", "SSH tunnelling HTTP reverse proxy"),
-		logger:  logger,
+		Command: koanfcommand.New("tunneller", "SSH tunnelling HTTP reverse proxy",
+			simplecommand.WithSubCommands(
+				&versionCommand{
+					Command: simplecommand.New("version", "Print version"),
+					logger:  logger,
+				},
+			),
+		),
+		logger: logger,
 	}
 	rootCmd.EnvPrefix = "tunneller"
 	rootCmd.EnvKeyReplacer = strings.NewReplacer(".", "_")
-	rootCmd.SubCommands = []simplecobra.Commander{
-		&versionCommand{
-			Command: simplecommand.New("version", "Print version"),
-			logger:  logger,
-		},
-	}
 
 	// Set up simplecobra
 	x, err := simplecobra.New(rootCmd)
