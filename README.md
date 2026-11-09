@@ -12,6 +12,12 @@ with defaults and restrictions configured at startup via command line flags.
 tunneller [flags]
 ```
 
+Or via Docker:
+
+```sh
+docker run ghcr.io/andrewheberle/tunneller:v0.6.2 # x-release-please-version
+```
+
 ### Flags
 
 | Flag | Default | Description |
