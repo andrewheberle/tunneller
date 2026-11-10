@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.4](https://github.com/andrewheberle/tunneller/compare/v0.6.3...v0.6.4) (2026-11-10)
+
+
+### Bug Fixes
+
+* **deps:** update go toolchain directive to v1.27.4 ([#48](https://github.com/andrewheberle/tunneller/issues/48)) ([73faddb](https://github.com/andrewheberle/tunneller/commit/73faddb8ca3f9a11fcef78c79a7f9fe04e890c13))
+
 ## [0.6.3](https://github.com/andrewheberle/tunneller/compare/v0.6.2...v0.6.3) (2026-11-09)
 
 
