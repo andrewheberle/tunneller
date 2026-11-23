@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.6.4](https://github.com/andrewheberle/tunneller/compare/v0.6.3...v0.6.4) (2026-11-23)
+
+
+### Bug Fixes
+
+* **deps:** update cgr.dev/chainguard/static:latest docker digest to 8658e9e ([#55](https://github.com/andrewheberle/tunneller/issues/55)) ([d9b3ecb](https://github.com/andrewheberle/tunneller/commit/d9b3ecb38dbff4c6e1ad7bc1c0f1483c83c3b66d))
+* **deps:** update go toolchain directive to v1.27.4 ([#48](https://github.com/andrewheberle/tunneller/issues/48)) ([73faddb](https://github.com/andrewheberle/tunneller/commit/73faddb8ca3f9a11fcef78c79a7f9fe04e890c13))
+
 ## [0.6.3](https://github.com/andrewheberle/tunneller/compare/v0.6.2...v0.6.3) (2026-11-09)
 
 
